@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply font-sans bg-[#1a1a2e] min-h-screen flex justify-center items-center text-gray-200;
+  }
+  #root {
+    @apply flex flex-col items-center gap-5;
+  }
+}
+
+/* Custom square colors via CSS variables for inline styles */
+:root {
+  --sq-light: #f0d9b5;
+  --sq-dark: #b58863;
+  --sq-selected: rgba(255, 255, 100, 0.5);
+  --sq-lastmove-light: rgba(205, 210, 106, 0.7);
+  --sq-lastmove-dark: rgba(170, 162, 58, 0.7);
+  --sq-check: radial-gradient(ellipse at center, rgba(255,0,0,0.8) 0%, rgba(231,0,0,0.5) 25%, rgba(169,0,0,0.25) 50%, rgba(0,0,0,0) 75%);
+  --sq-premove: rgba(0, 150, 255, 0.35);
+}
