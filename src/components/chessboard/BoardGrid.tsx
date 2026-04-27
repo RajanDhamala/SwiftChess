@@ -2,7 +2,9 @@ import React from 'react'
 import { PieceComponents } from '../ChessPieces'
 import { getSquareColor, getSquareName } from '../../utils/chessUtils'
 import { PremoveOverlay } from './PremoveOverlay'
+import { MoveBadgeIcon } from './MoveBadge'
 import type { BoardThemeColors, LastMoveState, PremoveState } from './types'
+import type { MoveBadge } from '../ChessBoard'
 
 interface BoardGridProps {
   pieces: Record<string, string>
@@ -11,6 +13,7 @@ interface BoardGridProps {
   selectedSquare: string | null
   legalMoves: string[]
   lastMove: LastMoveState | null
+  lastMoveBadge?: MoveBadge | null
   inCheck: string | null
   premoves: PremoveState[]
   boardTheme: BoardThemeColors
@@ -58,6 +61,7 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
   selectedSquare,
   legalMoves,
   lastMove,
+  lastMoveBadge,
   inCheck,
   premoves,
   boardTheme,
@@ -75,9 +79,11 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
       const isLegalTarget = legalMoves.includes(square)
       const isCapture = isLegalTarget && pieces[square]
       const isDragSource = draggingFrom === square
+      const isLastMoveDestination = lastMove?.to === square
       const isPremoveSquare = premoves.some(premove => premove.from === square || premove.to === square)
       const squareStyle = getSquareStyle(col, row, square, selectedSquare, lastMove, inCheck, boardTheme)
       const coordColor = color === 'light' ? boardTheme.dark : boardTheme.light
+      const badgeSize = Math.max(22, Math.min(36, squareSize * 0.44))
 
       squares.push(
         <div
@@ -93,6 +99,11 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
           data-square={square}
         >
           {isPremoveSquare && <PremoveOverlay />}
+          {isLastMoveDestination && lastMoveBadge && (
+            <div className="absolute top-0.5 right-0.5 pointer-events-none z-[6]">
+              <MoveBadgeIcon badge={lastMoveBadge} size={badgeSize} />
+            </div>
+          )}
 
           {col === 0 && (
             <span

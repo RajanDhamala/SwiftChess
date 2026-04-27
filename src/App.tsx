@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import type { Move } from 'chess.js'
-import ChessBoard, { type BoardThemePreset } from './components/ChessBoard'
+import ChessBoard, { type BoardThemePreset, type ChessBoardMode, type MoveBadge } from './components/ChessBoard'
 
 const BOARD_THEME_OPTIONS: Array<{ value: BoardThemePreset; label: string }> = [
   { value: 'chessComClassic', label: 'Chess.com Classic' },
@@ -10,11 +10,30 @@ const BOARD_THEME_OPTIONS: Array<{ value: BoardThemePreset; label: string }> = [
   { value: 'custom', label: 'Custom (#E8E8E8 / #5EA01C)' },
 ]
 
+const MOCK_BADGES: MoveBadge[] = [
+  { kind: 'blunder' },
+  { kind: 'mistake' },
+  { kind: 'inaccuracy' },
+  { kind: 'miss' },
+  { kind: 'book' },
+  { kind: 'onlyMove' },
+  { kind: 'brilliant' },
+  { kind: 'good' },
+  { kind: 'excellent' },
+  { kind: 'best' },
+]
+
+function pickRandomBadge() {
+  return MOCK_BADGES[Math.floor(Math.random() * MOCK_BADGES.length)]
+}
+
 function App() {
   const [chess] = useState(() => new Chess())
   const [position, setPosition] = useState(chess.fen())
+  const [boardMode, setBoardMode] = useState<ChessBoardMode>('play')
   const [boardSoundEnabled, setBoardSoundEnabled] = useState(true)
   const [boardThemePreset, setBoardThemePreset] = useState<BoardThemePreset>('brownBoard')
+  const [mockBadge, setMockBadge] = useState<MoveBadge | null>(null)
   const blackReplyTimerRef = useRef<number | null>(null)
 
   const queueRandomBlackMove = useCallback(() => {
@@ -37,10 +56,22 @@ function App() {
   }, [chess])
 
   const handleMove = useCallback((move: Move) => {
+    if (boardMode === 'analysis') {
+      setMockBadge(pickRandomBadge())
+    }
     if (move.color === 'w') {
       queueRandomBlackMove()
     }
-  }, [queueRandomBlackMove])
+  }, [boardMode, queueRandomBlackMove])
+
+  const switchMode = useCallback((nextMode: ChessBoardMode) => {
+    setBoardMode(nextMode)
+    if (nextMode === 'analysis') {
+      setMockBadge(pickRandomBadge())
+      return
+    }
+    setMockBadge(null)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -53,6 +84,24 @@ function App() {
   return (
     <div>
       <div className="flex items-center justify-center gap-3 pt-4 flex-wrap">
+        <div className="flex items-center gap-1 rounded-lg bg-zinc-800 p-1">
+          <button
+            onClick={() => switchMode('play')}
+            className={`px-2.5 py-1.5 rounded text-xs font-semibold transition-colors ${
+              boardMode === 'play' ? 'bg-zinc-600 text-white' : 'text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            Play
+          </button>
+          <button
+            onClick={() => switchMode('analysis')}
+            className={`px-2.5 py-1.5 rounded text-xs font-semibold transition-colors ${
+              boardMode === 'analysis' ? 'bg-zinc-600 text-white' : 'text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            Analysis
+          </button>
+        </div>
         <label className="text-xs text-gray-300 font-semibold">
           Theme
           <select
@@ -77,6 +126,8 @@ function App() {
       <ChessBoard
         chess={chess}
         position={position}
+        mode={boardMode}
+        lastMoveBadge={boardMode === 'analysis' ? mockBadge : null}
         playerColor="w"
         onPositionChange={(fen) => setPosition(fen)}
         onMove={handleMove}

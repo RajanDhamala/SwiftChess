@@ -30,6 +30,24 @@ import type {
 
 export type { BoardThemeColors, BoardThemePreset } from './chessboard/types'
 export { BOARD_THEME_PRESETS } from './chessboard/types'
+export type ChessBoardMode = 'play' | 'analysis'
+export type MoveBadgeKind =
+  | 'blunder'
+  | 'mistake'
+  | 'inaccuracy'
+  | 'miss'
+  | 'good'
+  | 'excellent'
+  | 'best'
+  | 'brilliant'
+  | 'book'
+  | 'onlyMove'
+
+export interface MoveBadge {
+  kind: MoveBadgeKind
+  label?: string
+  src?: string
+}
 
 export interface PremoveValidationArgs {
   premove: PremoveState
@@ -43,6 +61,7 @@ export interface ChessBoardProps {
   position: string
   onPositionChange?: (fen: string, move?: Move) => void
   onMove?: (move: Move) => void
+  lastMoveBadge?: MoveBadge | null
   onPremoveAdd?: (premove: PremoveState) => void
   onPremoveExecute?: (premove: PremoveState, move: Move) => void
   onPremoveReject?: (premove: PremoveState) => void
@@ -56,6 +75,7 @@ export interface ChessBoardProps {
   arrowStyle?: ArrowStyleOptions
   capturedWhitePieces?: string[]
   capturedBlackPieces?: string[]
+  mode?: ChessBoardMode
   playerColor?: Color
   relaxedPremoveMode?: boolean
   enableSounds?: boolean
@@ -197,6 +217,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   position,
   onPositionChange,
   onMove,
+  lastMoveBadge,
   onPremoveAdd,
   onPremoveExecute,
   onPremoveReject,
@@ -210,6 +231,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   arrowStyle,
   capturedWhitePieces,
   capturedBlackPieces,
+  mode = 'play',
   playerColor = 'w',
   relaxedPremoveMode = true,
   enableSounds = true,
@@ -939,7 +961,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-100 tracking-wide">♟ Chess Board</h1>
         <div className="mt-1 text-sm text-gray-400 bg-white/[0.06] px-5 py-1.5 rounded-lg inline-block">
-          {getStatus()}
+          <span className="font-semibold text-gray-300">{mode === 'analysis' ? 'Analysis' : 'Play'}</span>
+          <span> • {getStatus()}</span>
         </div>
       </div>
 
@@ -962,6 +985,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             selectedSquare={selectedSquare}
             legalMoves={legalMoves}
             lastMove={lastMove}
+            lastMoveBadge={lastMoveBadge}
             inCheck={inCheck}
             premoves={activePremoves}
             boardTheme={mergedBoardTheme}
