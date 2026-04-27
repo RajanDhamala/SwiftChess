@@ -1,43 +1,54 @@
 import React from 'react'
-import type { Move } from 'chess.js'
 import { PieceComponents } from '../ChessPieces'
 import { getSquareColor, getSquareName } from '../../utils/chessUtils'
 import { PremoveOverlay } from './PremoveOverlay'
-import type { LastMoveState, PremoveState } from './types'
+import type { BoardThemeColors, LastMoveState, PremoveState } from './types'
 
 interface BoardGridProps {
   pieces: Record<string, string>
   squareSize: number
   isFlipped: boolean
   selectedSquare: string | null
-  legalMoves: Move[]
+  legalMoves: string[]
   lastMove: LastMoveState | null
   inCheck: string | null
   premoves: PremoveState[]
+  boardTheme: BoardThemeColors
   draggingFrom: string | null
   onSquareMouseDown: (e: React.MouseEvent<HTMLDivElement>, square: string) => void
   onSquareClick: (square: string) => void
 }
 
-function getSquareBgClass(
+const CHECK_BG =
+  'radial-gradient(ellipse at center, rgba(255,0,0,0.8) 0%, rgba(231,0,0,0.5) 25%, rgba(169,0,0,0.25) 50%, rgba(0,0,0,0) 75%)'
+
+function getSquareStyle(
   col: number,
   row: number,
   square: string,
   selectedSquare: string | null,
   lastMove: LastMoveState | null,
   inCheck: string | null,
-) {
+  boardTheme: BoardThemeColors,
+): React.CSSProperties {
   const isSelected = selectedSquare === square
   const isLastMoveFrom = lastMove?.from === square
   const isLastMoveTo = lastMove?.to === square
   const isLight = getSquareColor(col, row) === 'light'
+  const baseColor = isLight ? boardTheme.light : boardTheme.dark
 
-  if (inCheck === square) return ''
-  if (isSelected) return 'bg-yellow-300/50'
-  if (isLastMoveFrom || isLastMoveTo) {
-    return isLight ? 'bg-[rgba(205,210,106,0.7)]' : 'bg-[rgba(170,162,58,0.7)]'
+  if (inCheck === square) return { background: CHECK_BG }
+  if (isSelected) {
+    return {
+      background: `linear-gradient(rgba(255, 255, 100, 0.5), rgba(255, 255, 100, 0.5)), ${baseColor}`,
+    }
   }
-  return isLight ? 'bg-[#f0d9b5]' : 'bg-[#b58863]'
+  if (isLastMoveFrom || isLastMoveTo) {
+    return {
+      background: `linear-gradient(rgba(255, 235, 59, 0.35), rgba(255, 235, 59, 0.35)), ${baseColor}`,
+    }
+  }
+  return { backgroundColor: baseColor }
 }
 
 export const BoardGrid: React.FC<BoardGridProps> = ({
@@ -49,6 +60,7 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
   lastMove,
   inCheck,
   premoves,
+  boardTheme,
   draggingFrom,
   onSquareMouseDown,
   onSquareClick,
@@ -60,27 +72,21 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
       const square = getSquareName(col, row, isFlipped)
       const color = getSquareColor(col, row)
       const piece = pieces[square]
-      const isLegalTarget = legalMoves.some(move => move.to === square)
+      const isLegalTarget = legalMoves.includes(square)
       const isCapture = isLegalTarget && pieces[square]
-      const isInCheckSquare = inCheck === square
       const isDragSource = draggingFrom === square
       const isPremoveSquare = premoves.some(premove => premove.from === square || premove.to === square)
-      const bgClass = getSquareBgClass(col, row, square, selectedSquare, lastMove, inCheck)
-      const coordColor = color === 'light' ? 'text-[#b58863]' : 'text-[#f0d9b5]'
+      const squareStyle = getSquareStyle(col, row, square, selectedSquare, lastMove, inCheck, boardTheme)
+      const coordColor = color === 'light' ? boardTheme.dark : boardTheme.light
 
       squares.push(
         <div
           key={square}
-          className={`relative flex items-center justify-center cursor-pointer select-none ${bgClass}`}
+          className="relative flex items-center justify-center cursor-pointer select-none"
           style={{
             width: squareSize,
             height: squareSize,
-            ...(isInCheckSquare
-              ? {
-                background:
-                  'radial-gradient(ellipse at center, rgba(255,0,0,0.8) 0%, rgba(231,0,0,0.5) 25%, rgba(169,0,0,0.25) 50%, rgba(0,0,0,0) 75%)',
-              }
-              : {}),
+            ...squareStyle,
           }}
           onMouseDown={(e) => onSquareMouseDown(e, square)}
           onClick={() => onSquareClick(square)}
@@ -89,12 +95,18 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
           {isPremoveSquare && <PremoveOverlay />}
 
           {col === 0 && (
-            <span className={`absolute top-0.5 left-1 text-[11px] font-bold pointer-events-none z-[2] ${coordColor}`}>
+            <span
+              className="absolute top-0.5 left-1 text-[11px] font-bold pointer-events-none z-[2]"
+              style={{ color: coordColor }}
+            >
               {isFlipped ? row + 1 : 8 - row}
             </span>
           )}
           {row === 7 && (
-            <span className={`absolute bottom-0.5 right-1 text-[11px] font-bold pointer-events-none z-[2] ${coordColor}`}>
+            <span
+              className="absolute bottom-0.5 right-1 text-[11px] font-bold pointer-events-none z-[2]"
+              style={{ color: coordColor }}
+            >
               {isFlipped ? String.fromCharCode(104 - col) : String.fromCharCode(97 + col)}
             </span>
           )}

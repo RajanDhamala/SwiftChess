@@ -32,7 +32,7 @@ const ChessBox = ({ color }: ChessBoxProps) => {
   }, [isDragging]);
 
   return (
-    <div className={`w-14 h-14 flex items-center justify-center ${color === "w" ? "bg-white" : "bg-black"}`}>
+    <div className={`w-14 h-14 flex items-center justify-center  ${color === "w" ? "bg-white" : "bg-black"}`}>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="45"
