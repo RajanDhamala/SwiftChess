@@ -19,8 +19,6 @@ import { BoardGrid } from './chessboard/BoardGrid'
 import { ArrowLayer } from './chessboard/ArrowLayer'
 import { PromotionDialog } from './chessboard/PromotionDialog'
 import { CapturedPiecesRow } from './chessboard/CapturedPiecesRow'
-import { BoardControls } from './chessboard/BoardControls'
-import { FenLoader } from './chessboard/FenLoader'
 import { BOARD_THEME_PRESETS } from './chessboard/types'
 import type {
   Arrow,
@@ -94,16 +92,25 @@ export interface ChessBoardProps {
   squareSize?: number
   minSize?: number
   maxSize?: number
+  fillContainer?: boolean
+  showStatusBar?: boolean
+  showCapturedPieces?: boolean
+  className?: string
 }
 
 export interface ChessBoardHandle {
   flipBoard: () => void
   setFlipped: (flipped: boolean) => void
   isFlipped: () => boolean
+  goToPreviousMove: () => boolean
+  goToNextMove: () => boolean
+  canGoToPreviousMove: () => boolean
+  canGoToNextMove: () => boolean
+  setPositionFromFen: (fen: string) => boolean
+  resetToInitialFen: () => boolean
 }
 
 const DEFAULT_POSITION = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-const BOARD_SIZES = [48, 56, 64, 72, 80, 88, 96]
 const DEFAULT_ARROW_STYLE: Required<ArrowStyleOptions> = {
   color: 'rgb(0, 150, 50)',
   opacity: 0.85,
@@ -247,9 +254,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   boardTheme,
   flipped = false,
   onFlippedChange,
-  squareSize: initialSquareSize = 80,
-  minSize = 48,
-  maxSize = 96,
+  squareSize: fixedSquareSize,
+  minSize = 40,
+  maxSize = Number.POSITIVE_INFINITY,
+  fillContainer = true,
+  showStatusBar = false,
+  showCapturedPieces = false,
+  className,
 }, ref) => {
   const boardView = useMemo(() => new Chess(position), [position])
   const pieces = useMemo(() => boardFromFen(position), [position])
@@ -271,12 +282,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const [drawingArrow, setDrawingArrow] = useState<{ from: string } | null>(null)
   const [promotionPending, setPromotionPending] = useState<PromotionPendingState | null>(null)
   const [isFlipped, setIsFlipped] = useState(flipped)
-  const [squareSize, setSquareSize] = useState(initialSquareSize)
-  const [fenInput, setFenInput] = useState('')
-  const [fenError, setFenError] = useState('')
+  const [containerWidth, setContainerWidth] = useState(
+    fixedSquareSize ? fixedSquareSize * 8 : Math.max(minSize * 8, 320),
+  )
   const [internalArrows, setInternalArrows] = useState<Arrow[]>([])
   const [internalPremoves, setInternalPremoves] = useState<PremoveState[]>([])
 
+  const rootRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const dragPointerRef = useRef({ x: 0, y: 0 })
   const drawPointerRef = useRef({ x: 0, y: 0 })
@@ -284,6 +296,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const dragGhostRef = useRef<HTMLDivElement>(null)
   const liveArrowPathRef = useRef<SVGPathElement>(null)
   const rafRef = useRef<number | null>(null)
+  const redoStackRef = useRef<Move[]>([])
+  const internalMutationRef = useRef<'move' | 'prev' | 'next' | 'load' | null>(null)
   const lastHistoryLengthRef = useRef(chess.history().length)
   const wasGameOverRef = useRef(false)
   const wasPlaySuccessSoundRef = useRef(playSuccessSound)
@@ -296,7 +310,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     success?: HTMLAudioElement
   }>({})
 
-  const boardSize = squareSize * 8
+  const boardSize = useMemo(() => {
+    if (fixedSquareSize && fixedSquareSize > 0) return fixedSquareSize * 8
+    const minBoardSize = Math.max(minSize, 1) * 8
+    const maxBoardSize = (Number.isFinite(maxSize) ? maxSize : Number.POSITIVE_INFINITY) * 8
+    return Math.max(minBoardSize, Math.min(maxBoardSize, containerWidth))
+  }, [containerWidth, fixedSquareSize, maxSize, minSize])
+  const squareSize = boardSize / 8
   const turn = boardView.turn()
   const inCheck = useMemo(() => getCheckedKingSquare(boardView), [boardView])
   const castlingRights = useMemo(() => {
@@ -418,19 +438,6 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     onPositionChange?.(chess.fen(), move)
   }, [chess, onPositionChange])
 
-  const handleResize = useCallback((direction: 'up' | 'down') => {
-    setSquareSize((prev) => {
-      const idx = BOARD_SIZES.indexOf(prev)
-      if (direction === 'up' && idx < BOARD_SIZES.length - 1) return BOARD_SIZES[idx + 1]
-      if (direction === 'down' && idx > 0) return BOARD_SIZES[idx - 1]
-      if (idx === -1) {
-        if (direction === 'up') return BOARD_SIZES.find(size => size > prev) || prev
-        return [...BOARD_SIZES].reverse().find(size => size < prev) || prev
-      }
-      return prev
-    })
-  }, [])
-
   const executeMove = useCallback((from: string, to: string, promotion?: 'q' | 'r' | 'b' | 'n') => {
     if (chess.fen() !== position) return null
     try {
@@ -444,6 +451,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setLegalMoves([])
       setPromotionPending(null)
       setArrows([])
+      redoStackRef.current = []
+      internalMutationRef.current = 'move'
       onMove?.(move)
       emitPositionChange(move)
       return move
@@ -712,32 +721,61 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const loadFen = useCallback((fen: string) => {
     try {
       chess.load(fen)
-      setFenError('')
       setSelectedSquare(null)
       setLegalMoves([])
       setDrawingArrow(null)
       setPromotionPending(null)
+      setDragging(null)
       setArrows([])
       setPremoves([])
+      redoStackRef.current = []
+      internalMutationRef.current = 'load'
       emitPositionChange()
+      return true
     } catch {
-      setFenError('Invalid FEN string')
+      return false
     }
   }, [chess, emitPositionChange, setArrows, setPremoves])
 
-  const resetGame = useCallback(() => {
-    loadFen(initialFen)
-  }, [initialFen, loadFen])
-
-  const undoMove = useCallback(() => {
-    if (chess.fen() !== position) return
+  const goToPreviousMove = useCallback(() => {
+    if (chess.fen() !== position) return false
     const undone = chess.undo()
-    if (!undone) return
+    if (!undone) return false
+    redoStackRef.current.push(undone)
     setSelectedSquare(null)
     setLegalMoves([])
     setPromotionPending(null)
     setPremoves([])
+    internalMutationRef.current = 'prev'
     emitPositionChange()
+    return true
+  }, [chess, emitPositionChange, position, setPremoves])
+
+  const goToNextMove = useCallback(() => {
+    if (chess.fen() !== position) return false
+    const next = redoStackRef.current.pop()
+    if (!next) return false
+    try {
+      const replayed = chess.move({
+        from: next.from,
+        to: next.to,
+        promotion: next.promotion,
+      })
+      if (!replayed) {
+        redoStackRef.current.push(next)
+        return false
+      }
+      setSelectedSquare(null)
+      setLegalMoves([])
+      setPromotionPending(null)
+      setPremoves([])
+      internalMutationRef.current = 'next'
+      emitPositionChange(replayed)
+      return true
+    } catch {
+      redoStackRef.current.push(next)
+      return false
+    }
   }, [chess, emitPositionChange, position, setPremoves])
 
   useEffect(() => {
@@ -748,7 +786,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     flipBoard: () => setBoardFlipped((prev) => !prev),
     setFlipped: (nextFlipped: boolean) => setBoardFlipped(nextFlipped),
     isFlipped: () => isFlipped,
-  }), [isFlipped, setBoardFlipped])
+    goToPreviousMove,
+    goToNextMove,
+    canGoToPreviousMove: () => chess.fen() === position && chess.history().length > 0,
+    canGoToNextMove: () => redoStackRef.current.length > 0,
+    setPositionFromFen: (fen: string) => loadFen(fen),
+    resetToInitialFen: () => loadFen(initialFen),
+  }), [chess, goToNextMove, goToPreviousMove, initialFen, isFlipped, loadFen, position, setBoardFlipped])
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove)
@@ -758,6 +802,36 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       window.removeEventListener('mouseup', handleMouseUp)
     }
   }, [handleMouseMove, handleMouseUp])
+
+  useEffect(() => {
+    if (!fillContainer || (fixedSquareSize && fixedSquareSize > 0)) return
+    const node = rootRef.current
+    if (!node) return
+
+    const applyWidth = (nextWidth: number) => {
+      if (Number.isFinite(nextWidth) && nextWidth > 0) {
+        setContainerWidth(nextWidth)
+      }
+    }
+
+    applyWidth(node.clientWidth)
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      applyWidth(entry.contentRect.width)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [fillContainer, fixedSquareSize])
+
+  useEffect(() => {
+    if (!internalMutationRef.current) {
+      redoStackRef.current = []
+    }
+    internalMutationRef.current = null
+  }, [position])
 
   useEffect(() => {
     soundRefs.current.move = new Audio(DEFAULT_SOUND_SRCS.move)
@@ -854,6 +928,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
     setPremoves(rest)
     if (premoveMove) {
+      redoStackRef.current = []
+      internalMutationRef.current = 'move'
       onPremoveExecute?.(nextPremove, premoveMove)
       onMove?.(premoveMove)
       emitPositionChange(premoveMove)
@@ -962,21 +1038,20 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 p-5">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-100 tracking-wide">♟ Chess Board</h1>
-        <div className="mt-1 text-sm text-gray-400 bg-white/[0.06] px-5 py-1.5 rounded-lg inline-block">
-          <span className="font-semibold text-gray-300">{mode === 'analysis' ? 'Analysis' : 'Play'}</span>
-          <span> • {getStatus()}</span>
-        </div>
-      </div>
-
+    <div ref={rootRef} className={className ?? 'w-full'}>
       <div className="flex flex-col gap-2">
-        <CapturedPiecesRow
-          capturedPieces={isFlipped ? capturedWhite : capturedBlack}
-          label={isFlipped ? 'White captured:' : 'Black captured:'}
-        />
-
+        {showStatusBar && (
+          <div className="text-sm text-gray-400 bg-white/[0.06] px-3 py-1.5 rounded-lg inline-flex w-fit">
+            <span className="font-semibold text-gray-300">{mode === 'analysis' ? 'Analysis' : 'Play'}</span>
+            <span>&nbsp;• {getStatus()}</span>
+          </div>
+        )}
+        {showCapturedPieces && (
+          <CapturedPiecesRow
+            capturedPieces={isFlipped ? capturedWhite : capturedBlack}
+            label={isFlipped ? 'White captured:' : 'Black captured:'}
+          />
+        )}
         <div
           ref={boardRef}
           className="grid grid-cols-[repeat(8,1fr)] grid-rows-[repeat(8,1fr)] border-[3px] border-[#3a3a5c] rounded relative shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.3)] select-none"
@@ -1024,37 +1099,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             onSelect={handlePromotion}
           />
         </div>
-
-        <CapturedPiecesRow
-          capturedPieces={isFlipped ? capturedBlack : capturedWhite}
-          label={isFlipped ? 'Black captured:' : 'White captured:'}
-        />
+        {showCapturedPieces && (
+          <CapturedPiecesRow
+            capturedPieces={isFlipped ? capturedBlack : capturedWhite}
+            label={isFlipped ? 'Black captured:' : 'White captured:'}
+          />
+        )}
       </div>
-
-      <BoardControls
-        boardSize={boardSize}
-        squareSize={squareSize}
-        minSize={minSize}
-        maxSize={maxSize}
-        onReset={resetGame}
-        onUndo={undoMove}
-        onFlip={() => setBoardFlipped((prev) => !prev)}
-        onResizeDown={() => handleResize('down')}
-        onResizeUp={() => handleResize('up')}
-      />
-
-      <FenLoader
-        fenInput={fenInput}
-        fenError={fenError}
-        onFenInputChange={(value) => {
-          setFenInput(value)
-          setFenError('')
-        }}
-        onLoad={() => {
-          if (fenInput.trim()) loadFen(fenInput.trim())
-        }}
-      />
-
       {renderDragPiece()}
     </div>
   )

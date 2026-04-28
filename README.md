@@ -93,7 +93,7 @@ It also exports `BOARD_THEME_PRESETS` for preset color lookup.
 | `lastMoveBadge` | `{ kind: MoveBadgeKind; label?: string; src?: string } \| null` | - | Renders a PNG badge on the destination square of the latest move. |
 | `mode` | `'play' \| 'analysis'` | `'play'` | UI mode hint for status and host integration. |
 | `playerColor` | `'w' \| 'b'` | `'w'` | Side controlled by the player. |
-| `initialFen` | `string` | starting position | Used by reset/new game action. |
+| `initialFen` | `string` | starting position | Used by `resetToInitialFen()` ref method. |
 | `relaxedPremoveMode` | `boolean` | `true` | Uses pattern-based premove planning. |
 
 ```tsx
@@ -163,10 +163,16 @@ Built-in presets:
 | Prop | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `flipped` | `boolean` | `false` | Controlled orientation value. |
-| `onFlippedChange` | `(flipped: boolean) => void` | - | Fired when user flips board from controls/ref API. |
-| `squareSize` | `number` | `80` | Initial square size in px. |
-| `minSize` | `number` | `48` | Minimum square size in px. |
-| `maxSize` | `number` | `96` | Maximum square size in px. |
+| `onFlippedChange` | `(flipped: boolean) => void` | - | Fired when orientation changes. |
+| `fillContainer` | `boolean` | `true` | Board measures parent width and fills it. |
+| `squareSize` | `number` | - | Optional fixed square size (px). |
+| `minSize` | `number` | `40` | Minimum square size when `fillContainer` is enabled. |
+| `maxSize` | `number` | `Infinity` | Maximum square size when `fillContainer` is enabled. |
+| `className` | `string` | - | Class for the board root container. |
+| `showStatusBar` | `boolean` | `false` | Optional lightweight status row. |
+| `showCapturedPieces` | `boolean` | `false` | Optional captured pieces rows. |
+
+`ChessBoard` does not render built-in action UI (new game, undo, FEN loader, resize controls). Build your own controls and call the ref API.
 
 ### Captured pieces + sounds
 
@@ -186,6 +192,12 @@ const boardRef = useRef<ChessBoardHandle>(null)
 boardRef.current?.flipBoard()    // toggle orientation
 boardRef.current?.setFlipped(true)
 boardRef.current?.isFlipped()    // read current orientation
+boardRef.current?.goToPreviousMove()
+boardRef.current?.goToNextMove()
+boardRef.current?.canGoToPreviousMove()
+boardRef.current?.canGoToNextMove()
+boardRef.current?.setPositionFromFen('...')
+boardRef.current?.resetToInitialFen()
 ```
 
 ### Interaction shortcuts
@@ -236,30 +248,22 @@ const [arrows, setArrows] = useState([
 />
 ```
 
-### Flip board API (controlled + imperative)
-
-You can either control board orientation with props, or call it imperatively with a ref.
+### External controls example
 
 ```tsx
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { ChessBoard, type ChessBoardHandle } from 'swiftchess'
 import 'swiftchess/style.css'
 
 const boardRef = useRef<ChessBoardHandle>(null)
-const [flipped, setFlipped] = useState(false)
 
-<ChessBoard
-  ref={boardRef}
-  chess={chess}
-  position={position}
-  flipped={flipped}
-  onFlippedChange={setFlipped}
-/>
+<button onClick={() => boardRef.current?.goToPreviousMove()}>Prev</button>
+<button onClick={() => boardRef.current?.goToNextMove()}>Next</button>
+<button onClick={() => boardRef.current?.flipBoard()}>Flip</button>
 
-// imperative controls
-boardRef.current?.flipBoard()
-boardRef.current?.setFlipped(true)
-const isFlipped = boardRef.current?.isFlipped()
+<div style={{ width: 520 }}>
+  <ChessBoard ref={boardRef} chess={chess} position={position} />
+</div>
 ```
 
 ### Premove hooks

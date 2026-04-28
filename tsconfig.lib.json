@@ -9,8 +9,6 @@
     "rootDir": "src"
   },
   "include": [
-    "src/lib/index.ts",
-    "src/components/**/*",
-    "src/utils/**/*"
+    "src/lib/index.ts"
   ]
 }
