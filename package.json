@@ -1,25 +1,49 @@
 {
-  "name": "chess-app",
-  "private": true,
-  "version": "0.0.0",
+  "name": "swiftchess",
+  "version": "0.1.0",
+  "description": "React chessboard component with premoves, arrows, move indicators, and analysis-friendly hooks.",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "dev:demo": "vite",
+    "build": "npm run build:lib",
+    "build:demo": "tsc && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "chess.js": "^1.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.3",
+    "chess.js": "^1.4.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
-  },
-  "dependencies": {
-    "chess.js": "^1.4.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
   }
 }

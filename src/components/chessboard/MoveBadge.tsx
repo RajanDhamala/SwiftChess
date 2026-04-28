@@ -1,5 +1,15 @@
 import React from 'react'
 import type { MoveBadge, MoveBadgeKind } from '../ChessBoard'
+import blunderBadgeSrc from '../../assets/blunder.png'
+import mistakeBadgeSrc from '../../assets/mistake.png'
+import inaccuracyBadgeSrc from '../../assets/inaccuracy.png'
+import missBadgeSrc from '../../assets/miss.png'
+import goodBadgeSrc from '../../assets/goodMove.png'
+import excellentBadgeSrc from '../../assets/Excellent.png'
+import bestBadgeSrc from '../../assets/bestMove.png'
+import brilliantBadgeSrc from '../../assets/Brilliant.png'
+import bookBadgeSrc from '../../assets/bookMove.png'
+import onlyMoveBadgeSrc from '../../assets/OnlyMove.png'
 
 interface MoveBadgeIconProps {
   badge: MoveBadge
@@ -20,16 +30,16 @@ const BADGE_LABELS: Record<MoveBadgeKind, string> = {
 }
 
 const BADGE_IMAGE_SRCS: Record<MoveBadgeKind, string> = {
-  blunder: '/blunder.png',
-  mistake: '/mistake.png',
-  inaccuracy: '/inaccuracy',
-  miss: '/miss.png',
-  good: '/goodMove.png',
-  excellent: '/Excellent.png',
-  best: '/bestMove.png',
-  brilliant: '/Brilliant.png',
-  book: '/bookMove.png',
-  onlyMove: '/OnlyMove.png',
+  blunder: blunderBadgeSrc,
+  mistake: mistakeBadgeSrc,
+  inaccuracy: inaccuracyBadgeSrc,
+  miss: missBadgeSrc,
+  good: goodBadgeSrc,
+  excellent: excellentBadgeSrc,
+  best: bestBadgeSrc,
+  brilliant: brilliantBadgeSrc,
+  book: bookBadgeSrc,
+  onlyMove: onlyMoveBadgeSrc,
 }
 
 export const MoveBadgeIcon: React.FC<MoveBadgeIconProps> = ({ badge, size }) => {

@@ -5,7 +5,7 @@ import type { PromotionPendingState } from './types'
 
 interface PromotionDialogProps {
   pending: PromotionPendingState | null
-  turn: 'w' | 'b'
+  playerColor: 'w' | 'b'
   squareSize: number
   boardSize: number
   isFlipped: boolean
@@ -14,7 +14,7 @@ interface PromotionDialogProps {
 
 export const PromotionDialog: React.FC<PromotionDialogProps> = ({
   pending,
-  turn,
+  playerColor,
   squareSize,
   boardSize,
   isFlipped,
@@ -36,7 +36,7 @@ export const PromotionDialog: React.FC<PromotionDialogProps> = ({
         }}
       >
         {promotionPieces.map((piece) => {
-          const key = `${turn}${piece}`
+          const key = `${playerColor}${piece}`
           const PieceComp = PieceComponents[key]
           return (
             <div

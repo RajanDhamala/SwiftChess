@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import type { Color, Move, Square } from 'chess.js'
+import moveSoundSrc from '../assets/move.mp3'
+import captureSoundSrc from '../assets/capture.mp3'
+import castleSoundSrc from '../assets/castle.mp3'
+import checkSoundSrc from '../assets/check.mp3'
+import endSoundSrc from '../assets/end.mp3'
 import {
   boardFromFen,
   getSquareName,
@@ -107,11 +112,11 @@ const DEFAULT_ARROW_STYLE: Required<ArrowStyleOptions> = {
   liveOpacity: 0.7,
 }
 const DEFAULT_SOUND_SRCS = {
-  move: '/move.mp3',
-  capture: '/capture.mp3',
-  castle: '/castle.mp3',
-  check: '/check.mp3',
-  end: '/end.mp3',
+  move: moveSoundSrc,
+  capture: captureSoundSrc,
+  castle: castleSoundSrc,
+  check: checkSoundSrc,
+  end: endSoundSrc,
 }
 
 function removeCastlingRights(castlingRights: string, flags: string[]) {
@@ -948,10 +953,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
   const getStatus = () => {
     if (boardView.isCheckmate()) return `Checkmate! ${boardView.turn() === 'w' ? 'Black' : 'White'} wins!`
-    if (boardView.isDraw()) return 'Draw!'
     if (boardView.isStalemate()) return 'Stalemate!'
     if (boardView.isThreefoldRepetition()) return 'Draw by repetition!'
     if (boardView.isInsufficientMaterial()) return 'Draw by insufficient material!'
+    if (boardView.isDraw()) return 'Draw!'
     if (boardView.isCheck()) return `${boardView.turn() === 'w' ? 'White' : 'Black'} is in check!`
     return `${boardView.turn() === 'w' ? 'White' : 'Black'} to move`
   }
@@ -1012,7 +1017,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
           <PromotionDialog
             pending={promotionPending}
-            turn={turn}
+            playerColor={playerColor}
             squareSize={squareSize}
             boardSize={boardSize}
             isFlipped={isFlipped}
