@@ -42,7 +42,7 @@ const BADGE_IMAGE_SRCS: Record<MoveBadgeKind, string> = {
   onlyMove: onlyMoveBadgeSrc,
 }
 
-export const MoveBadgeIcon: React.FC<MoveBadgeIconProps> = ({ badge, size }) => {
+export const MoveBadgeIcon: React.FC<MoveBadgeIconProps> = React.memo(({ badge, size }) => {
   const src = badge.src ?? BADGE_IMAGE_SRCS[badge.kind]
   const title = badge.label ?? BADGE_LABELS[badge.kind]
 
@@ -58,4 +58,6 @@ export const MoveBadgeIcon: React.FC<MoveBadgeIconProps> = ({ badge, size }) => 
       draggable={false}
     />
   )
-}
+})
+
+MoveBadgeIcon.displayName = 'MoveBadgeIcon'

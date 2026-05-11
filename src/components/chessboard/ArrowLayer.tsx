@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { buildArrowPath } from '../../utils/arrowUtils'
 import type { Arrow } from './types'
 
@@ -16,7 +16,7 @@ interface ArrowLayerProps {
   liveArrowOpacity: number
 }
 
-export const ArrowLayer: React.FC<ArrowLayerProps> = ({
+export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
   arrows,
   drawingArrow,
   boardSize,
@@ -29,21 +29,23 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = ({
   liveArrowColor,
   liveArrowOpacity,
 }) => {
-  const targetCounts = arrows.reduce<Record<string, number>>((acc, arrow) => {
-    acc[arrow.to] = (acc[arrow.to] ?? 0) + 1
-    return acc
-  }, {})
+  const arrowData = useMemo(() => {
+    const targetCounts = arrows.reduce<Record<string, number>>((acc, arrow) => {
+      acc[arrow.to] = (acc[arrow.to] ?? 0) + 1
+      return acc
+    }, {})
 
-  const arrowData = arrows.map((arrow, index) => {
-    const lengthReducer = targetCounts[arrow.to] > 1 ? squareSize / 5 : squareSize / 10
-    const pathD = buildArrowPath(arrow.from, arrow.to, isFlipped, squareSize, lengthReducer)
-    if (!pathD) return null
-    const markerId = `arrowhead-${index}-${arrow.from}-${arrow.to}`
-    const stroke = arrow.color ?? defaultColor
-    const opacity = arrow.opacity ?? defaultOpacity
-    const strokeWidth = squareSize * (arrow.widthScale ?? defaultWidthScale)
-    return { ...arrow, pathD, markerId, stroke, opacity, strokeWidth }
-  })
+    return arrows.map((arrow, index) => {
+      const lengthReducer = targetCounts[arrow.to] > 1 ? squareSize / 5 : squareSize / 10
+      const pathD = buildArrowPath(arrow.from, arrow.to, isFlipped, squareSize, lengthReducer)
+      if (!pathD) return null
+      const markerId = `arrowhead-${index}-${arrow.from}-${arrow.to}`
+      const stroke = arrow.color ?? defaultColor
+      const opacity = arrow.opacity ?? defaultOpacity
+      const strokeWidth = squareSize * (arrow.widthScale ?? defaultWidthScale)
+      return { ...arrow, pathD, markerId, stroke, opacity, strokeWidth }
+    })
+  }, [arrows, defaultColor, defaultOpacity, defaultWidthScale, isFlipped, squareSize])
 
   return (
     <svg
@@ -108,4 +110,6 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = ({
       )}
     </svg>
   )
-}
+})
+
+ArrowLayer.displayName = 'ArrowLayer'

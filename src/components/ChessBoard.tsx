@@ -89,10 +89,14 @@ export interface ChessBoardProps {
   boardTheme?: Partial<BoardThemeColors>
   flipped?: boolean
   onFlippedChange?: (flipped: boolean) => void
+  boardSize?: number
+  onBoardSizeChange?: (boardSize: number, squareSize: number) => void
+  resizable?: boolean
   squareSize?: number
   minSize?: number
   maxSize?: number
   fillContainer?: boolean
+  showLegalMoves?: boolean
   showStatusBar?: boolean
   showCapturedPieces?: boolean
   className?: string
@@ -124,6 +128,12 @@ const DEFAULT_SOUND_SRCS = {
   castle: castleSoundSrc,
   check: checkSoundSrc,
   end: endSoundSrc,
+}
+
+function clampBoardSize(size: number, minSquareSize: number, maxSquareSize: number) {
+  const minBoardSize = Math.max(minSquareSize, 1) * 8
+  const maxBoardSize = (Number.isFinite(maxSquareSize) ? maxSquareSize : Number.POSITIVE_INFINITY) * 8
+  return Math.max(minBoardSize, Math.min(maxBoardSize, size))
 }
 
 function removeCastlingRights(castlingRights: string, flags: string[]) {
@@ -254,10 +264,14 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   boardTheme,
   flipped = false,
   onFlippedChange,
+  boardSize: controlledBoardSize,
+  onBoardSizeChange,
+  resizable = false,
   squareSize: fixedSquareSize,
   minSize = 40,
   maxSize = Number.POSITIVE_INFINITY,
-  fillContainer = true,
+  fillContainer = false,
+  showLegalMoves = true,
   showStatusBar = false,
   showCapturedPieces = false,
   className,
@@ -285,6 +299,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const [containerWidth, setContainerWidth] = useState(
     fixedSquareSize ? fixedSquareSize * 8 : Math.max(minSize * 8, 320),
   )
+  const [userBoardSize, setUserBoardSize] = useState<number | null>(null)
+  const [isResizing, setIsResizing] = useState(false)
   const [internalArrows, setInternalArrows] = useState<Arrow[]>([])
   const [internalPremoves, setInternalPremoves] = useState<PremoveState[]>([])
 
@@ -296,6 +312,9 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const dragGhostRef = useRef<HTMLDivElement>(null)
   const liveArrowPathRef = useRef<SVGPathElement>(null)
   const rafRef = useRef<number | null>(null)
+  const resizeRafRef = useRef<number | null>(null)
+  const resizeDragRef = useRef<{ startX: number; startY: number; startSize: number } | null>(null)
+  const pendingResizeSizeRef = useRef<number | null>(null)
   const redoStackRef = useRef<Move[]>([])
   const internalMutationRef = useRef<'move' | 'prev' | 'next' | 'load' | null>(null)
   const lastHistoryLengthRef = useRef(chess.history().length)
@@ -311,12 +330,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }>({})
 
   const boardSize = useMemo(() => {
-    if (fixedSquareSize && fixedSquareSize > 0) return fixedSquareSize * 8
-    const minBoardSize = Math.max(minSize, 1) * 8
-    const maxBoardSize = (Number.isFinite(maxSize) ? maxSize : Number.POSITIVE_INFINITY) * 8
-    return Math.max(minBoardSize, Math.min(maxBoardSize, containerWidth))
-  }, [containerWidth, fixedSquareSize, maxSize, minSize])
+    const requestedSize = controlledBoardSize ?? userBoardSize ?? (fixedSquareSize && fixedSquareSize > 0
+      ? fixedSquareSize * 8
+      : containerWidth)
+    return clampBoardSize(requestedSize, minSize, maxSize)
+  }, [containerWidth, controlledBoardSize, fixedSquareSize, maxSize, minSize, userBoardSize])
   const squareSize = boardSize / 8
+  const visibleLegalMoves = useMemo(() => (showLegalMoves ? legalMoves : []), [legalMoves, showLegalMoves])
   const turn = boardView.turn()
   const inCheck = useMemo(() => getCheckedKingSquare(boardView), [boardView])
   const castlingRights = useMemo(() => {
@@ -406,6 +426,23 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
     onPremovesChange?.(resolved)
   }, [activePremoves, premoves, onPremovesChange])
+
+  const commitBoardSize = useCallback((nextSize: number) => {
+    const clampedSize = Math.round(clampBoardSize(nextSize, minSize, maxSize))
+    pendingResizeSizeRef.current = clampedSize
+    if (resizeRafRef.current !== null) return
+
+    resizeRafRef.current = window.requestAnimationFrame(() => {
+      resizeRafRef.current = null
+      const pendingSize = pendingResizeSizeRef.current
+      pendingResizeSizeRef.current = null
+      if (pendingSize === null) return
+      if (controlledBoardSize === undefined) {
+        setUserBoardSize(pendingSize)
+      }
+      onBoardSizeChange?.(pendingSize, pendingSize / 8)
+    })
+  }, [controlledBoardSize, maxSize, minSize, onBoardSizeChange])
 
   const lastMove = useMemo<LastMoveState | null>(() => {
     const history = chess.history({ verbose: true })
@@ -623,11 +660,18 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [getPlanningPiece, getSelectableMoves, handleSquareClick, playerColor, promotionPending, setArrows])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging && !drawingArrow) return
+    if (!dragging && !drawingArrow && !resizeDragRef.current) return
+    if (resizeDragRef.current) {
+      const { startX, startY, startSize } = resizeDragRef.current
+      const deltaX = e.clientX - startX
+      const deltaY = e.clientY - startY
+      const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
+      commitBoardSize(startSize + delta)
+    }
     if (dragging) dragPointerRef.current = { x: e.clientX, y: e.clientY }
     if (drawingArrow) drawPointerRef.current = { x: e.clientX, y: e.clientY }
-    scheduleOverlayFrame()
-  }, [dragging, drawingArrow])
+    if (dragging || drawingArrow) scheduleOverlayFrame()
+  }, [commitBoardSize, dragging, drawingArrow])
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
     if (drawingArrow && e.button === 2) {
@@ -665,6 +709,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setDrawingArrow(null)
       if (liveArrowPathRef.current) liveArrowPathRef.current.setAttribute('d', '')
       boardRectRef.current = null
+      return
+    }
+
+    if (resizeDragRef.current) {
+      resizeDragRef.current = null
+      setIsResizing(false)
       return
     }
 
@@ -717,6 +767,18 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
   }, [])
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!resizable || e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    resizeDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startSize: boardSize,
+    }
+    setIsResizing(true)
+  }, [boardSize, resizable])
 
   const loadFen = useCallback((fen: string) => {
     try {
@@ -906,6 +968,9 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (rafRef.current !== null) {
         window.cancelAnimationFrame(rafRef.current)
       }
+      if (resizeRafRef.current !== null) {
+        window.cancelAnimationFrame(resizeRafRef.current)
+      }
     }
   }, [])
 
@@ -1003,6 +1068,14 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     })
   }
 
+  const renderedPieces = activePremoves.length > 0 && turn !== playerColor
+    ? premovePreview.previewPieces
+    : pieces
+
+  const handleBoardSquareClick = useCallback((square: string) => {
+    if (!dragging) handleSquareClick(square)
+  }, [dragging, handleSquareClick])
+
   const renderDragPiece = () => {
     if (!dragging) return null
     const PieceComp = PieceComponents[dragging.piece]
@@ -1054,16 +1127,16 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
         )}
         <div
           ref={boardRef}
-          className="grid grid-cols-[repeat(8,1fr)] grid-rows-[repeat(8,1fr)] border-[3px] border-[#3a3a5c] rounded relative shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.3)] select-none"
+          className={`grid grid-cols-[repeat(8,1fr)] grid-rows-[repeat(8,1fr)] border-[3px] border-[#3a3a5c] rounded relative shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.3)] select-none ${isResizing ? 'cursor-nwse-resize' : ''}`}
           style={{ width: boardSize, height: boardSize }}
           onContextMenu={handleContextMenu}
         >
           <BoardGrid
-            pieces={pieces}
+            pieces={renderedPieces}
             squareSize={squareSize}
             isFlipped={isFlipped}
             selectedSquare={selectedSquare}
-            legalMoves={legalMoves}
+            legalMoves={visibleLegalMoves}
             lastMove={lastMove}
             lastMoveBadge={lastMoveBadge}
             inCheck={inCheck}
@@ -1071,9 +1144,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             boardTheme={mergedBoardTheme}
             draggingFrom={dragging?.from ?? null}
             onSquareMouseDown={handleMouseDown}
-            onSquareClick={(square) => {
-              if (!dragging) handleSquareClick(square)
-            }}
+            onSquareClick={handleBoardSquareClick}
           />
 
           <ArrowLayer
@@ -1098,6 +1169,18 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             isFlipped={isFlipped}
             onSelect={handlePromotion}
           />
+
+          {resizable && (
+            <button
+              type="button"
+              className="absolute -bottom-3 -right-3 z-20 h-6 w-6 rounded bg-zinc-800/95 border border-white/30 shadow-lg cursor-nwse-resize flex items-center justify-center hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              aria-label="Resize board"
+              title="Resize board"
+              onMouseDown={handleResizeMouseDown}
+            >
+              <span className="block h-3 w-3 border-r-2 border-b-2 border-white/80" />
+            </button>
+          )}
         </div>
         {showCapturedPieces && (
           <CapturedPiecesRow

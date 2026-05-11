@@ -3,7 +3,7 @@ import DemoApp from './demo/DemoApp'
 function App() {
   const path = window.location.pathname
 
-  if (path === '/npm-test') {
+  if (path === '/npm-test' || path === '/nm-test') {
     return <DemoApp />
   }
 

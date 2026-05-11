@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { PieceComponents } from '../ChessPieces'
 import { getSquareColor, getSquareName } from '../../utils/chessUtils'
 import { PremoveOverlay } from './PremoveOverlay'
@@ -54,7 +54,7 @@ function getSquareStyle(
   return { backgroundColor: baseColor }
 }
 
-export const BoardGrid: React.FC<BoardGridProps> = ({
+export const BoardGrid: React.FC<BoardGridProps> = React.memo(({
   pieces,
   squareSize,
   isFlipped,
@@ -69,6 +69,15 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
   onSquareMouseDown,
   onSquareClick,
 }) => {
+  const legalMoveSet = useMemo(() => new Set(legalMoves), [legalMoves])
+  const premoveSquareSet = useMemo(() => {
+    const squares = new Set<string>()
+    for (const premove of premoves) {
+      squares.add(premove.from)
+      squares.add(premove.to)
+    }
+    return squares
+  }, [premoves])
   const squares: React.ReactNode[] = []
 
   for (let row = 0; row < 8; row++) {
@@ -76,11 +85,11 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
       const square = getSquareName(col, row, isFlipped)
       const color = getSquareColor(col, row)
       const piece = pieces[square]
-      const isLegalTarget = legalMoves.includes(square)
-      const isCapture = isLegalTarget && pieces[square]
+      const isLegalTarget = legalMoveSet.has(square)
+      const isCapture = isLegalTarget && Boolean(pieces[square])
       const isDragSource = draggingFrom === square
       const isLastMoveDestination = lastMove?.to === square
-      const isPremoveSquare = premoves.some(premove => premove.from === square || premove.to === square)
+      const isPremoveSquare = premoveSquareSet.has(square)
       const squareStyle = getSquareStyle(col, row, square, selectedSquare, lastMove, inCheck, boardTheme)
       const coordColor = color === 'light' ? boardTheme.dark : boardTheme.light
       const badgeSize = Math.max(22, Math.min(36, squareSize * 0.44))
@@ -143,4 +152,6 @@ export const BoardGrid: React.FC<BoardGridProps> = ({
   }
 
   return <>{squares}</>
-}
+})
+
+BoardGrid.displayName = 'BoardGrid'

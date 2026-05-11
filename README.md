@@ -164,6 +164,9 @@ Built-in presets:
 | --- | --- | --- | --- |
 | `flipped` | `boolean` | `false` | Controlled orientation value. |
 | `onFlippedChange` | `(flipped: boolean) => void` | - | Fired when orientation changes. |
+| `boardSize` | `number` | - | Optional controlled board size in pixels. |
+| `onBoardSizeChange` | `(boardSize: number, squareSize: number) => void` | - | Fired while the user drags the resize handle. |
+| `resizable` | `boolean` | `false` | Shows a bottom-right drag handle for user-controlled board resizing. |
 | `fillContainer` | `boolean` | `true` | Board measures parent width and fills it. |
 | `squareSize` | `number` | - | Optional fixed square size (px). |
 | `minSize` | `number` | `40` | Minimum square size when `fillContainer` is enabled. |
@@ -172,7 +175,25 @@ Built-in presets:
 | `showStatusBar` | `boolean` | `false` | Optional lightweight status row. |
 | `showCapturedPieces` | `boolean` | `false` | Optional captured pieces rows. |
 
-`ChessBoard` does not render built-in action UI (new game, undo, FEN loader, resize controls). Build your own controls and call the ref API.
+Use `resizable` when the package should render its own resize handle:
+
+```tsx
+const [boardSize, setBoardSize] = useState(560)
+
+<ChessBoard
+  chess={chess}
+  position={position}
+  boardSize={boardSize}
+  onBoardSizeChange={setBoardSize}
+  resizable
+  minSize={36}
+  maxSize={96}
+/>
+```
+
+`minSize` and `maxSize` are square sizes, so `minSize={36}` means a 288px minimum board.
+
+`ChessBoard` does not render built-in action UI (new game, undo, FEN loader). Build your own controls and call the ref API.
 
 ### Captured pieces + sounds
 
@@ -275,6 +296,20 @@ Premove state can be controlled and validated via your own logic:
 - `onPremoveAdd`, `onPremoveExecute`, `onPremoveReject`
 
 With `relaxedPremoveMode` (default: `true`), premove highlight squares are shown by piece pattern (ignoring blockers) so multi-piece/multi-turn premove planning is easier.
+Queued premoves also render a preview piece map while it is the opponent's turn, so the moved piece appears on its planned destination instead of staying on the original square.
+
+### Move classification badges
+
+Use `lastMoveBadge` for analysis-board move classifications. The badge is rendered on the latest move destination square and supports bundled Chess.com-style classes:
+
+```tsx
+<ChessBoard
+  chess={chess}
+  position={position}
+  mode="analysis"
+  lastMoveBadge={{ kind: 'brilliant' }}
+/>
+```
 
 ### Captured pieces from API
 
