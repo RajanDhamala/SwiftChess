@@ -1,6 +1,6 @@
 {
   "name": "swiftchess",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "React chessboard component with premoves, arrows, move indicators, and analysis-friendly hooks.",
   "type": "module",
   "main": "./dist/index.cjs",
