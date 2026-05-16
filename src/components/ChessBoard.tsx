@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import type { Color, Move, Square } from 'chess.js'
 import moveSoundSrc from '../assets/move.mp3'
@@ -13,7 +13,7 @@ import {
   getRelaxedPremoveTargets,
   needsPromotion,
 } from '../utils/chessUtils'
-import { buildArrowPath } from '../utils/arrowUtils'
+import { buildArrowShape } from '../utils/arrowUtils'
 import { PieceComponents } from './ChessPieces'
 import { BoardGrid } from './chessboard/BoardGrid'
 import { ArrowLayer } from './chessboard/ArrowLayer'
@@ -116,11 +116,11 @@ export interface ChessBoardHandle {
 
 const DEFAULT_POSITION = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const DEFAULT_ARROW_STYLE: Required<ArrowStyleOptions> = {
-  color: 'rgb(0, 150, 50)',
-  opacity: 0.85,
-  widthScale: 1 / 9,
-  liveColor: 'rgb(0, 120, 200)',
-  liveOpacity: 0.7,
+  color: '#15781B',
+  opacity: 0.6,
+  widthScale: 1 / 5,
+  liveColor: '#15781B',
+  liveOpacity: 0.6,
 }
 const DEFAULT_SOUND_SRCS = {
   move: moveSoundSrc,
@@ -129,6 +129,8 @@ const DEFAULT_SOUND_SRCS = {
   check: checkSoundSrc,
   end: endSoundSrc,
 }
+
+const useSafeLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 function clampBoardSize(size: number, minSquareSize: number, maxSquareSize: number) {
   const minBoardSize = Math.max(minSquareSize, 1) * 8
@@ -234,6 +236,23 @@ function getCheckedKingSquare(activeGame: Chess): string | null {
   return null
 }
 
+function piecesFromGame(activeGame: Chess): Record<string, string> {
+  const board = activeGame.board()
+  const nextPieces: Record<string, string> = {}
+
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col]
+      if (!piece) continue
+      const file = String.fromCharCode(97 + col)
+      const rank = 8 - row
+      nextPieces[`${file}${rank}`] = `${piece.color}${piece.type.toUpperCase()}`
+    }
+  }
+
+  return nextPieces
+}
+
 const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   chess,
   position,
@@ -277,7 +296,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   className,
 }, ref) => {
   const boardView = useMemo(() => new Chess(position), [position])
-  const pieces = useMemo(() => boardFromFen(position), [position])
+  const pieces = useMemo(() => piecesFromGame(boardView), [boardView])
   const mergedArrowStyle = useMemo(
     () => ({ ...DEFAULT_ARROW_STYLE, ...arrowStyle }),
     [arrowStyle],
@@ -311,6 +330,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const boardRectRef = useRef<DOMRect | null>(null)
   const dragGhostRef = useRef<HTMLDivElement>(null)
   const liveArrowPathRef = useRef<SVGPathElement>(null)
+  const liveArrowHeadRef = useRef<SVGPolygonElement>(null)
   const rafRef = useRef<number | null>(null)
   const resizeRafRef = useRef<number | null>(null)
   const resizeDragRef = useRef<{ startX: number; startY: number; startSize: number } | null>(null)
@@ -337,6 +357,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [containerWidth, controlledBoardSize, fixedSquareSize, maxSize, minSize, userBoardSize])
   const squareSize = boardSize / 8
   const visibleLegalMoves = useMemo(() => (showLegalMoves ? legalMoves : []), [legalMoves, showLegalMoves])
+  const verboseHistory = useMemo(() => chess.history({ verbose: true }), [chess, position])
   const turn = boardView.turn()
   const inCheck = useMemo(() => getCheckedKingSquare(boardView), [boardView])
   const castlingRights = useMemo(() => {
@@ -445,16 +466,18 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [controlledBoardSize, maxSize, minSize, onBoardSizeChange])
 
   const lastMove = useMemo<LastMoveState | null>(() => {
-    const history = chess.history({ verbose: true })
-    const last = history[history.length - 1]
+    const last = verboseHistory[verboseHistory.length - 1]
     return last ? { from: last.from, to: last.to } : null
-  }, [chess, position])
+  }, [verboseHistory])
 
   const { capturedWhite: calculatedCapturedWhite, capturedBlack: calculatedCapturedBlack } = useMemo(() => {
+    if (!showCapturedPieces) {
+      return { capturedWhite: [], capturedBlack: [] }
+    }
+
     const white: string[] = []
     const black: string[] = []
-    const history = chess.history({ verbose: true })
-    for (const move of history) {
+    for (const move of verboseHistory) {
       if (!move.captured) continue
       const capturedPiece = move.color === 'w'
         ? `b${move.captured.toUpperCase()}`
@@ -466,10 +489,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       }
     }
     return { capturedWhite: white, capturedBlack: black }
-  }, [chess, position])
+  }, [showCapturedPieces, verboseHistory])
 
-  const capturedWhite = capturedWhitePieces ?? calculatedCapturedWhite
-  const capturedBlack = capturedBlackPieces ?? calculatedCapturedBlack
+  const capturedWhite = showCapturedPieces ? capturedWhitePieces ?? calculatedCapturedWhite : []
+  const capturedBlack = showCapturedPieces ? capturedBlackPieces ?? calculatedCapturedBlack : []
 
   const emitPositionChange = useCallback((move?: Move) => {
     onPositionChange?.(chess.fen(), move)
@@ -708,6 +731,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       }
       setDrawingArrow(null)
       if (liveArrowPathRef.current) liveArrowPathRef.current.setAttribute('d', '')
+      if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
       boardRectRef.current = null
       return
     }
@@ -850,20 +874,22 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     isFlipped: () => isFlipped,
     goToPreviousMove,
     goToNextMove,
-    canGoToPreviousMove: () => chess.fen() === position && chess.history().length > 0,
+    canGoToPreviousMove: () => chess.fen() === position && verboseHistory.length > 0,
     canGoToNextMove: () => redoStackRef.current.length > 0,
     setPositionFromFen: (fen: string) => loadFen(fen),
     resetToInitialFen: () => loadFen(initialFen),
-  }), [chess, goToNextMove, goToPreviousMove, initialFen, isFlipped, loadFen, position, setBoardFlipped])
+  }), [chess, goToNextMove, goToPreviousMove, initialFen, isFlipped, loadFen, position, setBoardFlipped, verboseHistory.length])
 
   useEffect(() => {
+    if (!dragging && !drawingArrow && !isResizing) return
+
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [handleMouseMove, handleMouseUp])
+  }, [dragging, drawingArrow, handleMouseMove, handleMouseUp, isResizing])
 
   useEffect(() => {
     if (!fillContainer || (fixedSquareSize && fixedSquareSize > 0)) return
@@ -927,13 +953,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [playAudio, playSuccessSound])
 
   useEffect(() => {
-    const history = chess.history({ verbose: true })
     const previousHistoryLength = lastHistoryLengthRef.current
     const gameOverNow = boardView.isGameOver()
     const wasGameOver = wasGameOverRef.current
 
-    if (history.length > previousHistoryLength) {
-      const latestMove = history[history.length - 1]
+    if (verboseHistory.length > previousHistoryLength) {
+      const latestMove = verboseHistory[verboseHistory.length - 1]
       const gaveCheck = boardView.isCheck()
       const castled = latestMove.flags.includes('k') || latestMove.flags.includes('q')
       const captured = Boolean(latestMove.captured)
@@ -953,9 +978,9 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
     }
 
-    lastHistoryLengthRef.current = history.length
+    lastHistoryLengthRef.current = verboseHistory.length
     wasGameOverRef.current = gameOverNow
-  }, [boardView, chess, playAudio, position])
+  }, [boardView, playAudio, verboseHistory])
 
   useEffect(() => {
     if (dragging || drawingArrow) {
@@ -974,7 +999,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
   }, [])
 
-  useEffect(() => {
+  useSafeLayoutEffect(() => {
     if (promotionPending || activePremoves.length === 0) return
     if (turn !== playerColor) return
     if (chess.fen() !== position) return
@@ -1015,7 +1040,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     turn,
   ])
 
-  useEffect(() => {
+  useSafeLayoutEffect(() => {
     setSelectedSquare(null)
     setLegalMoves([])
     setPromotionPending(null)
@@ -1032,6 +1057,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       const rect = boardRectRef.current ?? boardRef.current?.getBoundingClientRect() ?? null
       if (!rect) {
         liveArrowPathRef.current.setAttribute('d', '')
+        if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
         return
       }
 
@@ -1040,23 +1066,28 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       const row = Math.floor((drawPointerRef.current.y - rect.top) / squareSize)
       if (col < 0 || col > 7 || row < 0 || row > 7) {
         liveArrowPathRef.current.setAttribute('d', '')
+        if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
         return
       }
 
       const toSquare = getSquareName(col, row, isFlipped)
       if (toSquare === drawingArrow.from) {
         liveArrowPathRef.current.setAttribute('d', '')
+        if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
         return
       }
 
-      const livePath = buildArrowPath(
+      const liveShape = buildArrowShape(
         drawingArrow.from,
         toSquare,
         isFlipped,
         squareSize,
-        squareSize / 3.5,
+        squareSize / 3.2,
       )
-      liveArrowPathRef.current.setAttribute('d', livePath ?? '')
+      liveArrowPathRef.current.setAttribute('d', liveShape?.shaftD ?? '')
+      if (liveArrowHeadRef.current) {
+        liveArrowHeadRef.current.setAttribute('points', liveShape?.headPoints ?? '')
+      }
     }
   }
 
@@ -1154,6 +1185,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             squareSize={squareSize}
             isFlipped={isFlipped}
             liveArrowPathRef={liveArrowPathRef}
+            liveArrowHeadRef={liveArrowHeadRef}
             defaultColor={mergedArrowStyle.color}
             defaultOpacity={mergedArrowStyle.opacity}
             defaultWidthScale={mergedArrowStyle.widthScale}

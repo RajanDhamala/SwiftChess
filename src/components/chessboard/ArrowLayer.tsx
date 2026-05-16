@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { buildArrowPath } from '../../utils/arrowUtils'
+import { buildArrowShape } from '../../utils/arrowUtils'
 import type { Arrow } from './types'
 
 interface ArrowLayerProps {
@@ -9,6 +9,7 @@ interface ArrowLayerProps {
   squareSize: number
   isFlipped: boolean
   liveArrowPathRef: React.RefObject<SVGPathElement | null>
+  liveArrowHeadRef: React.RefObject<SVGPolygonElement | null>
   defaultColor: string
   defaultOpacity: number
   defaultWidthScale: number
@@ -23,6 +24,7 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
   squareSize,
   isFlipped,
   liveArrowPathRef,
+  liveArrowHeadRef,
   defaultColor,
   defaultOpacity,
   defaultWidthScale,
@@ -36,14 +38,13 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
     }, {})
 
     return arrows.map((arrow, index) => {
-      const lengthReducer = targetCounts[arrow.to] > 1 ? squareSize / 5 : squareSize / 10
-      const pathD = buildArrowPath(arrow.from, arrow.to, isFlipped, squareSize, lengthReducer)
-      if (!pathD) return null
-      const markerId = `arrowhead-${index}-${arrow.from}-${arrow.to}`
+      const lengthReducer = targetCounts[arrow.to] > 1 ? squareSize / 2.7 : squareSize / 3.2
+      const shape = buildArrowShape(arrow.from, arrow.to, isFlipped, squareSize, lengthReducer)
+      if (!shape) return null
       const stroke = arrow.color ?? defaultColor
       const opacity = arrow.opacity ?? defaultOpacity
       const strokeWidth = squareSize * (arrow.widthScale ?? defaultWidthScale)
-      return { ...arrow, pathD, markerId, stroke, opacity, strokeWidth }
+      return { ...arrow, id: `${index}-${arrow.from}-${arrow.to}`, shape, stroke, opacity, strokeWidth }
     })
   }, [arrows, defaultColor, defaultOpacity, defaultWidthScale, isFlipped, squareSize])
 
@@ -53,60 +54,36 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
       height={boardSize}
       className="absolute top-0 left-0 pointer-events-none z-10"
     >
-      <defs>
-        {arrowData.map((arrow) => {
-          if (!arrow) return null
-          return (
-            <marker
-              key={arrow.markerId}
-              id={arrow.markerId}
-              markerWidth="20"
-              markerHeight="20"
-              refX="3.5"
-              refY="2"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <polygon points="0,0 4,2 0,4" fill={arrow.stroke} fillOpacity={arrow.opacity} />
-            </marker>
-          )
-        })}
-        {drawingArrow && (
-          <marker id="arrowhead-live" markerWidth="20" markerHeight="20" refX="3.5" refY="2" orient="auto" markerUnits="strokeWidth">
-            <polygon points="0,0 4,2 0,4" fill={liveArrowColor} fillOpacity={liveArrowOpacity} />
-          </marker>
-        )}
-      </defs>
-
       {arrowData.map((arrow) => {
         if (!arrow) return null
         return (
-          <path
-            key={`${arrow.from}-${arrow.to}-${arrow.markerId}`}
-            d={arrow.pathD}
-            fill="none"
-            stroke={arrow.stroke}
-            strokeWidth={arrow.strokeWidth}
-            markerEnd={`url(#${arrow.markerId})`}
-            opacity={arrow.opacity}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <g key={arrow.id} opacity={arrow.opacity}>
+            <path
+              d={arrow.shape.shaftD}
+              fill="none"
+              stroke={arrow.stroke}
+              strokeWidth={arrow.strokeWidth}
+              strokeLinecap="butt"
+              strokeLinejoin="round"
+            />
+            <polygon points={arrow.shape.headPoints} fill={arrow.stroke} />
+          </g>
         )
       })}
 
       {drawingArrow && (
-        <path
-          ref={liveArrowPathRef}
-          d=""
-          fill="none"
-          stroke={liveArrowColor}
-          strokeWidth={squareSize * defaultWidthScale}
-          markerEnd="url(#arrowhead-live)"
-          opacity={liveArrowOpacity}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <g opacity={liveArrowOpacity}>
+          <path
+            ref={liveArrowPathRef}
+            d=""
+            fill="none"
+            stroke={liveArrowColor}
+            strokeWidth={squareSize * defaultWidthScale}
+            strokeLinecap="butt"
+            strokeLinejoin="round"
+          />
+          <polygon ref={liveArrowHeadRef} points="" fill={liveArrowColor} />
+        </g>
       )}
     </svg>
   )

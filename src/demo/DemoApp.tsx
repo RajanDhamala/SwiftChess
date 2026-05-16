@@ -226,10 +226,10 @@ function DemoApp() {
         showStatusBar
         className="w-full flex justify-center"
         arrowStyle={{
-          color: 'rgb(16, 185,12)',
-          opacity: 0.85,
-          liveColor: 'rgb(59, 130, 246)',
-          liveOpacity: 0.7,
+          color: '#15781B',
+          opacity: 0.6,
+          liveColor: '#15781B',
+          liveOpacity: 0.6,
         }}
       />
     </div>

@@ -57,3 +57,86 @@ export function buildArrowPath(
   }
   return `M${start.x},${start.y} L${end.x},${end.y}`
 }
+
+interface Point {
+  x: number
+  y: number
+}
+
+export interface ArrowShape {
+  shaftD: string
+  headPoints: string
+}
+
+function formatPoint(point: Point) {
+  return `${point.x},${point.y}`
+}
+
+function buildArrowHead(tip: Point, previous: Point, squareSize: number): { baseCenter: Point; points: string } | null {
+  const dx = tip.x - previous.x
+  const dy = tip.y - previous.y
+  const distance = Math.hypot(dx, dy)
+  if (distance === 0) return null
+
+  const ux = dx / distance
+  const uy = dy / distance
+  const px = -uy
+  const py = ux
+  const headLength = Math.min(squareSize * 0.46, distance * 0.68)
+  const headWidth = Math.min(squareSize * 0.42, headLength * 1.25)
+  const baseCenter = {
+    x: tip.x - ux * headLength,
+    y: tip.y - uy * headLength,
+  }
+  const left = {
+    x: baseCenter.x + px * headWidth / 2,
+    y: baseCenter.y + py * headWidth / 2,
+  }
+  const right = {
+    x: baseCenter.x - px * headWidth / 2,
+    y: baseCenter.y - py * headWidth / 2,
+  }
+
+  return {
+    baseCenter,
+    points: `${formatPoint(left)} ${formatPoint(tip)} ${formatPoint(right)}`,
+  }
+}
+
+export function buildArrowShape(
+  from: string,
+  to: string,
+  isFlipped: boolean,
+  squareSize: number,
+  _lengthReducer: number,
+): ArrowShape | null {
+  const { x1, y1, x2, y2 } = getArrowPoints(from, to, isFlipped, squareSize)
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const distance = Math.hypot(dx, dy)
+  if (distance === 0) return null
+
+  const knightDistance = Math.hypot(1, 2) * squareSize
+  const start = { x: x1, y: y1 }
+  const tip = { x: x2, y: y2 }
+
+  if (Math.round(distance) === Math.round(knightDistance)) {
+    const isVerticalFirst = Math.abs(dx) < Math.abs(dy)
+    const corner = isVerticalFirst ? { x: x1, y: y2 } : { x: x2, y: y1 }
+    const head = buildArrowHead(tip, corner, squareSize)
+    if (!head) return null
+
+    return {
+      shaftD: `M${start.x},${start.y} L${corner.x},${corner.y} L${head.baseCenter.x},${head.baseCenter.y}`,
+      headPoints: head.points,
+    }
+  }
+
+  const head = buildArrowHead(tip, start, squareSize)
+  if (!head) return null
+
+  return {
+    shaftD: `M${start.x},${start.y} L${head.baseCenter.x},${head.baseCenter.y}`,
+    headPoints: head.points,
+  }
+}
