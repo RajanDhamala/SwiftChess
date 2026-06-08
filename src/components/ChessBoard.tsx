@@ -683,18 +683,11 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [getPlanningPiece, getSelectableMoves, handleSquareClick, playerColor, promotionPending, setArrows])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging && !drawingArrow && !resizeDragRef.current) return
-    if (resizeDragRef.current) {
-      const { startX, startY, startSize } = resizeDragRef.current
-      const deltaX = e.clientX - startX
-      const deltaY = e.clientY - startY
-      const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
-      commitBoardSize(startSize + delta)
-    }
+    if (!dragging && !drawingArrow) return
     if (dragging) dragPointerRef.current = { x: e.clientX, y: e.clientY }
     if (drawingArrow) drawPointerRef.current = { x: e.clientX, y: e.clientY }
     if (dragging || drawingArrow) scheduleOverlayFrame()
-  }, [commitBoardSize, dragging, drawingArrow])
+  }, [dragging, drawingArrow])
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
     if (drawingArrow && e.button === 2) {
@@ -733,12 +726,6 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (liveArrowPathRef.current) liveArrowPathRef.current.setAttribute('d', '')
       if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
       boardRectRef.current = null
-      return
-    }
-
-    if (resizeDragRef.current) {
-      resizeDragRef.current = null
-      setIsResizing(false)
       return
     }
 
@@ -792,10 +779,11 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     e.preventDefault()
   }, [])
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleResizePointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (!resizable || e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
     resizeDragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -803,6 +791,20 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
     setIsResizing(true)
   }, [boardSize, resizable])
+
+  const handleResizePointerMove = useCallback((e: PointerEvent) => {
+    if (!resizeDragRef.current) return
+    const { startX, startY, startSize } = resizeDragRef.current
+    const deltaX = e.clientX - startX
+    const deltaY = e.clientY - startY
+    const delta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
+    commitBoardSize(startSize + delta)
+  }, [commitBoardSize])
+
+  const handleResizePointerUp = useCallback(() => {
+    resizeDragRef.current = null
+    setIsResizing(false)
+  }, [])
 
   const loadFen = useCallback((fen: string) => {
     try {
@@ -881,7 +883,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }), [chess, goToNextMove, goToPreviousMove, initialFen, isFlipped, loadFen, position, setBoardFlipped, verboseHistory.length])
 
   useEffect(() => {
-    if (!dragging && !drawingArrow && !isResizing) return
+    if (!dragging && !drawingArrow) return
 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -889,7 +891,19 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [dragging, drawingArrow, handleMouseMove, handleMouseUp, isResizing])
+  }, [dragging, drawingArrow, handleMouseMove, handleMouseUp])
+
+  useEffect(() => {
+    if (!isResizing) return
+    window.addEventListener('pointermove', handleResizePointerMove)
+    window.addEventListener('pointerup', handleResizePointerUp)
+    window.addEventListener('pointercancel', handleResizePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handleResizePointerMove)
+      window.removeEventListener('pointerup', handleResizePointerUp)
+      window.removeEventListener('pointercancel', handleResizePointerUp)
+    }
+  }, [handleResizePointerMove, handleResizePointerUp, isResizing])
 
   useEffect(() => {
     if (!fillContainer || (fixedSquareSize && fixedSquareSize > 0)) return
@@ -1205,10 +1219,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
           {resizable && (
             <button
               type="button"
-              className="absolute -bottom-3 -right-3 z-20 h-6 w-6 rounded bg-zinc-800/95 border border-white/30 shadow-lg cursor-nwse-resize flex items-center justify-center hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="absolute -bottom-3 -right-3 z-20 h-7 w-7 touch-none rounded bg-zinc-800/95 border border-white/30 shadow-lg cursor-nwse-resize flex items-center justify-center hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="Resize board"
               title="Resize board"
-              onMouseDown={handleResizeMouseDown}
+              onPointerDown={handleResizePointerDown}
             >
               <span className="block h-3 w-3 border-r-2 border-b-2 border-white/80" />
             </button>

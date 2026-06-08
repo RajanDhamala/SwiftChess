@@ -82,8 +82,8 @@ function buildArrowHead(tip: Point, previous: Point, squareSize: number): { base
   const uy = dy / distance
   const px = -uy
   const py = ux
-  const headLength = Math.min(squareSize * 0.46, distance * 0.68)
-  const headWidth = Math.min(squareSize * 0.42, headLength * 1.25)
+  const headLength = Math.min(squareSize * 0.5, distance * 0.68)
+  const headWidth = Math.min(squareSize * 0.68, headLength * 1.4)
   const baseCenter = {
     x: tip.x - ux * headLength,
     y: tip.y - uy * headLength,

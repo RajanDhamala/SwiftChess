@@ -63,7 +63,7 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
               fill="none"
               stroke={arrow.stroke}
               strokeWidth={arrow.strokeWidth}
-              strokeLinecap="butt"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
             <polygon points={arrow.shape.headPoints} fill={arrow.stroke} />
@@ -79,7 +79,7 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
             fill="none"
             stroke={liveArrowColor}
             strokeWidth={squareSize * defaultWidthScale}
-            strokeLinecap="butt"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
           <polygon ref={liveArrowHeadRef} points="" fill={liveArrowColor} />

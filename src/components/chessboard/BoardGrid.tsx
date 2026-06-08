@@ -58,7 +58,7 @@ function getSquareStyle(
   const isLight = getSquareColor(col, row) === 'light'
   const baseColor = isLight ? boardTheme.light : boardTheme.dark
 
-  if (isInCheck) return { background: CHECK_BG }
+  if (isInCheck) return { background: `${CHECK_BG}, ${baseColor}` }
   if (isSelected) {
     return {
       background: `linear-gradient(rgba(255, 255, 100, 0.5), rgba(255, 255, 100, 0.5)), ${baseColor}`,
