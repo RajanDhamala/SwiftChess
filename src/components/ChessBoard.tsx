@@ -319,6 +319,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     fixedSquareSize ? fixedSquareSize * 8 : Math.max(minSize * 8, 320),
   )
   const [userBoardSize, setUserBoardSize] = useState<number | null>(null)
+  const [isTouchDragPending, setIsTouchDragPending] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [internalArrows, setInternalArrows] = useState<Arrow[]>([])
   const [internalPremoves, setInternalPremoves] = useState<PremoveState[]>([])
@@ -333,6 +334,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const liveArrowHeadRef = useRef<SVGPolygonElement>(null)
   const rafRef = useRef<number | null>(null)
   const resizeRafRef = useRef<number | null>(null)
+  const pendingTouchDragRef = useRef<{ pointerId: number; from: string; piece: string; startX: number; startY: number; active: boolean } | null>(null)
   const resizeDragRef = useRef<{ startX: number; startY: number; startSize: number } | null>(null)
   const pendingResizeSizeRef = useRef<number | null>(null)
   const redoStackRef = useRef<Move[]>([])
@@ -657,8 +659,55 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     setPromotionPending(null)
   }, [executeMove, playerColor, promotionPending, queuePremove, turn])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, square: string) => {
-    if (e.button === 2) {
+  const startPieceDrag = useCallback((piece: string, from: string, clientX: number, clientY: number) => {
+    setSelectedSquare(from)
+    setLegalMoves(getSelectableMoves(from))
+    setArrows([])
+    dragPointerRef.current = { x: clientX, y: clientY }
+    setDragging({ piece, from })
+    scheduleOverlayFrame()
+  }, [getSelectableMoves, setArrows])
+
+  const dropPiece = useCallback((dragState: DragState, clientX: number, clientY: number) => {
+    const rect = boardRef.current?.getBoundingClientRect()
+    if (rect) {
+      const col = Math.floor((clientX - rect.left) / squareSize)
+      const row = Math.floor((clientY - rect.top) / squareSize)
+      if (col >= 0 && col < 8 && row >= 0 && row < 8) {
+        const toSquare = getSquareName(col, row, isFlipped)
+        if (dragState.from !== toSquare) {
+          if (turn === playerColor) {
+            if (needsPromotion(boardView, dragState.from, toSquare)) {
+              setPromotionPending({ from: dragState.from, to: toSquare })
+              setDragging(null)
+              return
+            }
+            executeMove(dragState.from, toSquare)
+          } else {
+            if (needsPremovePromotion(dragState.from, toSquare)) {
+              setPromotionPending({ from: dragState.from, to: toSquare })
+              setDragging(null)
+              return
+            }
+            queuePremove(dragState.from, toSquare)
+          }
+        }
+      }
+    }
+    setDragging(null)
+  }, [
+    boardView,
+    executeMove,
+    isFlipped,
+    needsPremovePromotion,
+    playerColor,
+    queuePremove,
+    squareSize,
+    turn,
+  ])
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>, square: string) => {
+    if (e.pointerType === 'mouse' && e.button === 2) {
       e.preventDefault()
       drawPointerRef.current = { x: e.clientX, y: e.clientY }
       boardRectRef.current = boardRef.current?.getBoundingClientRect() ?? null
@@ -669,28 +718,50 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
     if (e.button !== 0 || promotionPending) return
     const piece = getPlanningPiece(square)
-    if (!piece || piece[0] !== playerColor) {
-      handleSquareClick(square)
+    if (!piece || piece[0] !== playerColor) return
+
+    if (e.pointerType === 'mouse') {
+      e.preventDefault()
+      startPieceDrag(piece, square, e.clientX, e.clientY)
       return
     }
 
-    setSelectedSquare(square)
-    setLegalMoves(getSelectableMoves(square))
-    setArrows([])
+    pendingTouchDragRef.current = {
+      pointerId: e.pointerId,
+      from: square,
+      piece,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false,
+    }
     dragPointerRef.current = { x: e.clientX, y: e.clientY }
-    setDragging({ piece, from: square })
-    scheduleOverlayFrame()
-  }, [getPlanningPiece, getSelectableMoves, handleSquareClick, playerColor, promotionPending, setArrows])
+    setIsTouchDragPending(true)
+  }, [getPlanningPiece, playerColor, promotionPending, startPieceDrag])
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handlePointerMove = useCallback((e: PointerEvent) => {
+    const pendingTouchDrag = pendingTouchDragRef.current
+    if (pendingTouchDrag && pendingTouchDrag.pointerId === e.pointerId) {
+      dragPointerRef.current = { x: e.clientX, y: e.clientY }
+      const moved = Math.hypot(e.clientX - pendingTouchDrag.startX, e.clientY - pendingTouchDrag.startY)
+      if (!pendingTouchDrag.active && moved >= 6) {
+        pendingTouchDrag.active = true
+        startPieceDrag(pendingTouchDrag.piece, pendingTouchDrag.from, e.clientX, e.clientY)
+      }
+      if (pendingTouchDrag.active) {
+        e.preventDefault()
+        scheduleOverlayFrame()
+      }
+      return
+    }
+
     if (!dragging && !drawingArrow) return
     if (dragging) dragPointerRef.current = { x: e.clientX, y: e.clientY }
     if (drawingArrow) drawPointerRef.current = { x: e.clientX, y: e.clientY }
     if (dragging || drawingArrow) scheduleOverlayFrame()
-  }, [dragging, drawingArrow])
+  }, [dragging, drawingArrow, startPieceDrag])
 
-  const handleMouseUp = useCallback((e: MouseEvent) => {
-    if (drawingArrow && e.button === 2) {
+  const handlePointerUp = useCallback((e: PointerEvent) => {
+    if (drawingArrow && e.pointerType === 'mouse' && e.button === 2) {
       const rect = boardRectRef.current ?? boardRef.current?.getBoundingClientRect()
       if (rect) {
         const col = Math.floor((e.clientX - rect.left) / squareSize)
@@ -729,50 +800,29 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       return
     }
 
-    if (!dragging) return
-    const rect = boardRef.current?.getBoundingClientRect()
-    if (rect) {
-      const col = Math.floor((e.clientX - rect.left) / squareSize)
-      const row = Math.floor((e.clientY - rect.top) / squareSize)
-      if (col >= 0 && col < 8 && row >= 0 && row < 8) {
-        const toSquare = getSquareName(col, row, isFlipped)
-        if (dragging.from !== toSquare) {
-          if (turn === playerColor) {
-            if (needsPromotion(boardView, dragging.from, toSquare)) {
-              setPromotionPending({ from: dragging.from, to: toSquare })
-              setDragging(null)
-              return
-            }
-            executeMove(dragging.from, toSquare)
-          } else {
-            if (needsPremovePromotion(dragging.from, toSquare)) {
-              setPromotionPending({ from: dragging.from, to: toSquare })
-              setDragging(null)
-              return
-            }
-            queuePremove(dragging.from, toSquare)
-          }
-        }
+    const pendingTouchDrag = pendingTouchDragRef.current
+    if (pendingTouchDrag && pendingTouchDrag.pointerId === e.pointerId) {
+      pendingTouchDragRef.current = null
+      setIsTouchDragPending(false)
+      if (pendingTouchDrag.active) {
+        dropPiece({ piece: pendingTouchDrag.piece, from: pendingTouchDrag.from }, e.clientX, e.clientY)
       }
+      return
     }
-    setDragging(null)
+
+    if (!dragging) return
+    dropPiece(dragging, e.clientX, e.clientY)
   }, [
     activePremoves.length,
-    boardView,
     dragging,
     drawingArrow,
-    executeMove,
-    isFlipped,
+    dropPiece,
     mergedArrowStyle.color,
     mergedArrowStyle.opacity,
     mergedArrowStyle.widthScale,
-    needsPremovePromotion,
-    playerColor,
-    queuePremove,
     setArrows,
     setPremoves,
     squareSize,
-    turn,
   ])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -883,15 +933,17 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }), [chess, goToNextMove, goToPreviousMove, initialFen, isFlipped, loadFen, position, setBoardFlipped, verboseHistory.length])
 
   useEffect(() => {
-    if (!dragging && !drawingArrow) return
+    if (!dragging && !drawingArrow && !isTouchDragPending) return
 
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
     }
-  }, [dragging, drawingArrow, handleMouseMove, handleMouseUp])
+  }, [dragging, drawingArrow, handlePointerMove, handlePointerUp, isTouchDragPending])
 
   useEffect(() => {
     if (!isResizing) return
@@ -1172,7 +1224,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
         )}
         <div
           ref={boardRef}
-          className={`grid grid-cols-[repeat(8,1fr)] grid-rows-[repeat(8,1fr)] border-[3px] border-[#3a3a5c] rounded relative shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.3)] select-none ${isResizing ? 'cursor-nwse-resize' : ''}`}
+          className={`grid grid-cols-[repeat(8,1fr)] grid-rows-[repeat(8,1fr)] border-[3px] border-[#3a3a5c] rounded relative shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(0,0,0,0.3)] select-none touch-none ${isResizing ? 'cursor-nwse-resize' : ''}`}
           style={{ width: boardSize, height: boardSize }}
           onContextMenu={handleContextMenu}
         >
@@ -1188,7 +1240,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             premoves={activePremoves}
             boardTheme={mergedBoardTheme}
             draggingFrom={dragging?.from ?? null}
-            onSquareMouseDown={handleMouseDown}
+            onSquarePointerDown={handlePointerDown}
             onSquareClick={handleBoardSquareClick}
           />
 

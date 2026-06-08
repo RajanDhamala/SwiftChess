@@ -18,7 +18,7 @@ interface BoardGridProps {
   premoves: PremoveState[]
   boardTheme: BoardThemeColors
   draggingFrom: string | null
-  onSquareMouseDown: (e: React.MouseEvent<HTMLDivElement>, square: string) => void
+  onSquarePointerDown: (e: React.PointerEvent<HTMLDivElement>, square: string) => void
   onSquareClick: (square: string) => void
 }
 
@@ -39,7 +39,7 @@ interface SquareCellProps {
   isInCheck: boolean
   boardTheme: BoardThemeColors
   lastMoveBadge?: MoveBadge | null
-  onSquareMouseDown: (e: React.MouseEvent<HTMLDivElement>, square: string) => void
+  onSquarePointerDown: (e: React.PointerEvent<HTMLDivElement>, square: string) => void
   onSquareClick: (square: string) => void
 }
 
@@ -97,7 +97,7 @@ const SquareCell = React.memo(({
   isInCheck,
   boardTheme,
   lastMoveBadge,
-  onSquareMouseDown,
+  onSquarePointerDown,
   onSquareClick,
 }: SquareCellProps) => {
   const color = getSquareColor(col, row)
@@ -113,9 +113,9 @@ const SquareCell = React.memo(({
   const coordColor = color === 'light' ? boardTheme.dark : boardTheme.light
   const badgeSize = Math.max(22, Math.min(36, squareSize * 0.44))
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    onSquareMouseDown(e, square)
-  }, [onSquareMouseDown, square])
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    onSquarePointerDown(e, square)
+  }, [onSquarePointerDown, square])
 
   const handleClick = useCallback(() => {
     onSquareClick(square)
@@ -129,7 +129,7 @@ const SquareCell = React.memo(({
         height: squareSize,
         ...squareStyle,
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onClick={handleClick}
       data-square={square}
     >
@@ -188,22 +188,22 @@ export const BoardGrid: React.FC<BoardGridProps> = React.memo(({
   premoves,
   boardTheme,
   draggingFrom,
-  onSquareMouseDown,
+  onSquarePointerDown,
   onSquareClick,
 }) => {
-  const mouseDownRef = useRef(onSquareMouseDown)
+  const pointerDownRef = useRef(onSquarePointerDown)
   const clickRef = useRef(onSquareClick)
 
   useEffect(() => {
-    mouseDownRef.current = onSquareMouseDown
-  }, [onSquareMouseDown])
+    pointerDownRef.current = onSquarePointerDown
+  }, [onSquarePointerDown])
 
   useEffect(() => {
     clickRef.current = onSquareClick
   }, [onSquareClick])
 
-  const handleSquareMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, square: string) => {
-    mouseDownRef.current(e, square)
+  const handleSquarePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>, square: string) => {
+    pointerDownRef.current(e, square)
   }, [])
 
   const handleSquareClick = useCallback((square: string) => {
@@ -251,7 +251,7 @@ export const BoardGrid: React.FC<BoardGridProps> = React.memo(({
           isInCheck={inCheck === square}
           boardTheme={boardTheme}
           lastMoveBadge={isLastMoveDestination ? lastMoveBadge : null}
-          onSquareMouseDown={handleSquareMouseDown}
+          onSquarePointerDown={handleSquarePointerDown}
           onSquareClick={handleSquareClick}
         />,
       )
