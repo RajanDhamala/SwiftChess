@@ -2,9 +2,53 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/swiftchess-favicon.svg" sizes="any" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>chess-app</title>
+    <meta
+      name="description"
+      content="SwiftChess is a lightweight React chessboard component with premoves, drawable arrows, move indicators, responsive sizing, and chess.js integration."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1a1724" />
+    <link id="canonical-url" rel="canonical" />
+    <script>
+      document.getElementById('canonical-url').href = `${window.location.origin}${window.location.pathname}`
+    </script>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SwiftChess" />
+    <meta property="og:title" content="SwiftChess - React Chessboard Component" />
+    <meta
+      property="og:description"
+      content="A lightweight React chessboard with premoves, drawable arrows, move indicators, responsive sizing, and chess.js integration."
+    />
+    <meta property="og:image" content="/swiftchess-og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SwiftChess knight logo" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="SwiftChess - React Chessboard Component" />
+    <meta
+      name="twitter:description"
+      content="A lightweight React chessboard with premoves, drawable arrows, move indicators, responsive sizing, and chess.js integration."
+    />
+    <meta name="twitter:image" content="/swiftchess-og.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "SwiftChess",
+        "description": "A lightweight React chessboard component with premoves, drawable arrows, move indicators, responsive sizing, and chess.js integration.",
+        "codeRepository": "https://github.com/RajanDhamala/SwiftChess",
+        "downloadUrl": "https://www.npmjs.com/package/swiftchess",
+        "programmingLanguage": ["TypeScript", "React"],
+        "runtimePlatform": "Web browser"
+      }
+    </script>
+
+    <title>SwiftChess - React Chessboard Component</title>
   </head>
   <body>
     <div id="root"></div>

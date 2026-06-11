@@ -337,6 +337,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const pendingTouchDragRef = useRef<{ pointerId: number; from: string; piece: string; startX: number; startY: number; active: boolean } | null>(null)
   const resizeDragRef = useRef<{ startX: number; startY: number; startSize: number } | null>(null)
   const pendingResizeSizeRef = useRef<number | null>(null)
+  const suppressBoardClickUntilRef = useRef(0)
   const redoStackRef = useRef<Move[]>([])
   const internalMutationRef = useRef<'move' | 'prev' | 'next' | 'load' | null>(null)
   const lastHistoryLengthRef = useRef(chess.history().length)
@@ -676,6 +677,9 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (col >= 0 && col < 8 && row >= 0 && row < 8) {
         const toSquare = getSquareName(col, row, isFlipped)
         if (dragState.from !== toSquare) {
+          // Browsers dispatch a click after pointerup. Ignore that click so a
+          // completed drag does not immediately select the piece again.
+          suppressBoardClickUntilRef.current = performance.now() + 250
           if (turn === playerColor) {
             if (needsPromotion(boardView, dragState.from, toSquare)) {
               setPromotionPending({ from: dragState.from, to: toSquare })
@@ -1170,6 +1174,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     : pieces
 
   const handleBoardSquareClick = useCallback((square: string) => {
+    if (performance.now() <= suppressBoardClickUntilRef.current) {
+      suppressBoardClickUntilRef.current = 0
+      return
+    }
     if (!dragging) handleSquareClick(square)
   }, [dragging, handleSquareClick])
 

@@ -5,7 +5,7 @@
     @apply font-sans bg-[#1a1a2e] min-h-screen flex justify-center items-center text-gray-200;
   }
   #root {
-    @apply flex flex-col items-center gap-5;
+    @apply flex min-h-screen w-full flex-col items-center gap-5;
   }
 }
 

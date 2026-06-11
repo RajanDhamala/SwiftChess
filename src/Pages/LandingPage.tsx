@@ -93,9 +93,7 @@ function LandingPage() {
   const [resizable, setResizable] = useState(false)
   const [theme, setTheme] = useState<BoardThemePreset>('brownBoard')
   const [requestedBoardSize, setRequestedBoardSize] = useState(520)
-  const [viewportWidth, setViewportWidth] = useState(() =>
-    typeof window === 'undefined' ? 1200 : window.innerWidth,
-  )
+  const [viewportWidth, setViewportWidth] = useState(1200)
   const [thinking, setThinking] = useState(false)
   const [badge, setBadge] = useState<MoveBadge | null>(null)
   const [canPrevious, setCanPrevious] = useState(false)
@@ -196,6 +194,7 @@ function LandingPage() {
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth)
+    handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -212,11 +211,16 @@ function LandingPage() {
   }, [])
 
   return (
-    <div className="min-h-screen w-screen bg-[#f7f8fa] text-[#202733]">
+    <div className="min-h-screen w-full bg-[#f7f8fa] text-[#202733]">
       <header className="sticky top-0 z-40 border-b border-[#dfe3e8] bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-5 lg:px-8">
           <a href="#" className="flex items-center gap-3 text-[#202733]">
-            <span className="grid h-9 w-9 place-items-center rounded-md bg-[#202733] text-xl text-white">S</span>
+            <img
+              src="/swiftchess-logo.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-10 w-10 shrink-0 object-contain"
+            />
             <span>
               <strong className="block text-[15px] leading-4">SwiftChess</strong>
               <span className="text-[11px] text-[#687386]">React chessboard</span>
@@ -318,9 +322,8 @@ function LandingPage() {
                             key={tab}
                             type="button"
                             onClick={() => setCodeTab(tab)}
-                            className={`rounded px-2.5 py-1.5 text-xs font-semibold capitalize ${
-                              codeTab === tab ? 'bg-white/12 text-white' : 'text-[#9ca7b5] hover:text-white'
-                            }`}
+                            className={`rounded px-2.5 py-1.5 text-xs font-semibold capitalize ${codeTab === tab ? 'bg-white/12 text-white' : 'text-[#9ca7b5] hover:text-white'
+                              }`}
                           >
                             {tab}
                           </button>
@@ -354,9 +357,8 @@ function LandingPage() {
                           setMode(item)
                           setBadge(item === 'analysis' ? BADGES[3] : null)
                         }}
-                        className={`rounded px-3 py-2 text-sm font-semibold capitalize ${
-                          mode === item ? 'bg-white text-[#202733] shadow-sm' : 'text-[#687386] hover:text-[#202733]'
-                        }`}
+                        className={`rounded px-3 py-2 text-sm font-semibold capitalize ${mode === item ? 'bg-white text-[#202733] shadow-sm' : 'text-[#687386] hover:text-[#202733]'
+                          }`}
                       >
                         {item === 'play' ? (
                           <Swords className="mr-1.5 inline" size={15} aria-hidden="true" />
@@ -378,16 +380,14 @@ function LandingPage() {
                           key={color}
                           type="button"
                           onClick={() => changePlayerColor(color)}
-                          className={`flex items-center justify-center gap-2 rounded border px-3 py-2 text-sm font-semibold ${
-                            playerColor === color
+                          className={`flex items-center justify-center gap-2 rounded border px-3 py-2 text-sm font-semibold ${playerColor === color
                               ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]'
                               : 'border-[#d3d8de] bg-white text-[#4d5765] hover:bg-[#f3f5f7]'
-                          }`}
+                            }`}
                         >
                           <span
-                            className={`h-4 w-4 rounded-full border ${
-                              color === 'w' ? 'border-[#9ea6b1] bg-white' : 'border-[#202733] bg-[#202733]'
-                            }`}
+                            className={`h-4 w-4 rounded-full border ${color === 'w' ? 'border-[#9ea6b1] bg-white' : 'border-[#202733] bg-[#202733]'
+                              }`}
                           />
                           {color === 'w' ? 'White' : 'Black'}
                         </button>
@@ -417,9 +417,8 @@ function LandingPage() {
                           title={option.label}
                           aria-label={`${option.label} board theme`}
                           onClick={() => setTheme(option.value)}
-                          className={`grid h-7 flex-1 grid-cols-2 overflow-hidden rounded border-2 ${
-                            theme === option.value ? 'border-[#202733]' : 'border-transparent'
-                          }`}
+                          className={`grid h-7 flex-1 grid-cols-2 overflow-hidden rounded border-2 ${theme === option.value ? 'border-[#202733]' : 'border-transparent'
+                            }`}
                         >
                           <span style={{ backgroundColor: option.colors[0] }} />
                           <span style={{ backgroundColor: option.colors[1] }} />
@@ -449,9 +448,8 @@ function LandingPage() {
                     <button
                       type="button"
                       onClick={() => setSoundEnabled((current) => !current)}
-                      className={`rounded border px-3 py-2 text-sm font-semibold ${
-                        soundEnabled ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
-                      }`}
+                      className={`rounded border px-3 py-2 text-sm font-semibold ${soundEnabled ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
+                        }`}
                     >
                       {soundEnabled ? <Volume2 className="mr-1.5 inline" size={16} /> : <VolumeX className="mr-1.5 inline" size={16} />}
                       Sound {soundEnabled ? 'on' : 'off'}
@@ -459,9 +457,8 @@ function LandingPage() {
                     <button
                       type="button"
                       onClick={() => setShowLegalMoves((current) => !current)}
-                      className={`rounded border px-3 py-2 text-sm font-semibold ${
-                        showLegalMoves ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
-                      }`}
+                      className={`rounded border px-3 py-2 text-sm font-semibold ${showLegalMoves ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
+                        }`}
                     >
                       <CircleDot className="mr-1.5 inline" size={16} />
                       Legal moves {showLegalMoves ? 'on' : 'off'}
@@ -469,9 +466,8 @@ function LandingPage() {
                     <button
                       type="button"
                       onClick={() => setResizable((current) => !current)}
-                      className={`rounded border px-3 py-2 text-sm font-semibold ${
-                        resizable ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
-                      }`}
+                      className={`rounded border px-3 py-2 text-sm font-semibold ${resizable ? 'border-[#2e7d54] bg-[#edf7f1] text-[#246343]' : 'border-[#d3d8de] bg-white text-[#4d5765]'
+                        }`}
                     >
                       <Maximize2 className="mr-1.5 inline" size={16} />
                       Resize handle {resizable ? 'on' : 'off'}
