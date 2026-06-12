@@ -6,7 +6,7 @@ SwiftChess is a lightweight React chessboard component with fast drag interactio
 
 Explore the interactive playground, live examples, and package documentation:
 
-**https://swift-chess.rajandhamala.workers.dev/**
+**https://swiftches.lucarioqh5.workers.dev/**
 
 ## Install
 
