@@ -83,6 +83,7 @@ const chess = new Chess()
 - `BoardThemePreset`
 - `BoardThemeColors`
 - `ChessBoardMode`
+- `ChessBoardExplorerMode`
 - `MoveBadgeKind`
 - `MoveBadge`
 
@@ -99,6 +100,7 @@ It also exports `BOARD_THEME_PRESETS` for preset color lookup.
 | `lastMoveBadge` | `{ kind: MoveBadgeKind; label?: string; src?: string } \| null` | - | Renders a PNG badge on the destination square of the latest move. |
 | `mode` | `'play' \| 'analysis'` | `'play'` | UI mode hint for status and host integration. |
 | `playerColor` | `'w' \| 'b'` | `'w'` | Side controlled by the player. |
+| `explorerMode` | `'off' \| 'normal' \| 'god'` | `'off'` | Controls whether explorer interaction can move non-`playerColor` pieces. |
 | `initialFen` | `string` | starting position | Used by `resetToInitialFen()` ref method. |
 | `relaxedPremoveMode` | `boolean` | `true` | Uses pattern-based premove planning. |
 
@@ -117,6 +119,21 @@ Supported badge kinds: `blunder`, `mistake`, `inaccuracy`, `miss`, `good`, `exce
 
 By default, badge kinds use built-in bundled images from the package.
 You can still override any badge image with `lastMoveBadge={{ kind: 'best', src: '...' }}`.
+
+### Explorer mode
+
+Set `explorerMode="normal"` when the board should behave like an opening explorer instead of a player-only board. In normal explorer mode, users can click or drag the side whose turn it is, even when that side does not match `playerColor`; moves still follow the legal turn in the current FEN.
+
+Use `explorerMode="god"` only when you intentionally want sandbox behavior where either side can be selected regardless of turn. God mode still uses chess.js legal moves for the selected piece, but it bypasses the FEN turn by evaluating from that piece's side.
+
+```tsx
+<ChessBoard
+  chess={chess}
+  position={position}
+  onPositionChange={setPosition}
+  explorerMode="normal"
+/>
+```
 
 ### Board theme API
 

@@ -8,6 +8,7 @@ export type {
   BoardThemeColors,
   BoardThemePreset,
   ChessBoardMode,
+  ChessBoardExplorerMode,
   MoveBadge,
   MoveBadgeKind,
 } from '../components/ChessBoard'

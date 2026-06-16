@@ -34,6 +34,8 @@ import type {
 export type { BoardThemeColors, BoardThemePreset } from './chessboard/types'
 export { BOARD_THEME_PRESETS } from './chessboard/types'
 export type ChessBoardMode = 'play' | 'analysis'
+export type ChessBoardExplorerMode = 'off' | 'normal' | 'god'
+type PromotionPiece = 'q' | 'r' | 'b' | 'n'
 export type MoveBadgeKind =
   | 'blunder'
   | 'mistake'
@@ -100,6 +102,7 @@ export interface ChessBoardProps {
   showStatusBar?: boolean
   showCapturedPieces?: boolean
   className?: string
+  explorerMode?: ChessBoardExplorerMode
 }
 
 export interface ChessBoardHandle {
@@ -219,6 +222,20 @@ function withTurn(fen: string, turn: Color): string {
   return parts.join(' ')
 }
 
+function getPieceColor(piece?: string): Color | null {
+  if (!piece) return null
+  const color = piece[0]
+  return color === 'w' || color === 'b' ? color : null
+}
+
+function createGameWithTurn(fen: string, turn: Color): Chess | null {
+  try {
+    return new Chess(withTurn(fen, turn), { skipValidation: true })
+  } catch {
+    return null
+  }
+}
+
 function getCheckedKingSquare(activeGame: Chess): string | null {
   if (!activeGame.isCheck()) return null
   const board = activeGame.board()
@@ -294,6 +311,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   showStatusBar = false,
   showCapturedPieces = false,
   className,
+  explorerMode = 'off',
 }, ref) => {
   const boardView = useMemo(() => new Chess(position), [position])
   const pieces = useMemo(() => piecesFromGame(boardView), [boardView])
@@ -362,6 +380,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const visibleLegalMoves = useMemo(() => (showLegalMoves ? legalMoves : []), [legalMoves, showLegalMoves])
   const verboseHistory = useMemo(() => chess.history({ verbose: true }), [chess, position])
   const turn = boardView.turn()
+  const isExplorerEnabled = explorerMode !== 'off'
+  const isGodExplorerMode = explorerMode === 'god'
   const inCheck = useMemo(() => getCheckedKingSquare(boardView), [boardView])
   const castlingRights = useMemo(() => {
     const fenParts = position.trim().split(/\s+/)
@@ -430,9 +450,22 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [activePremoves, castlingRights, pieces, playerColor, position, relaxedPremoveMode])
 
   const getPlanningPiece = useCallback((square: string) => {
-    if (turn === playerColor) return pieces[square]
+    if (isExplorerEnabled || turn === playerColor) return pieces[square]
     return premovePreview.previewPieces[square]
-  }, [pieces, playerColor, premovePreview.previewPieces, turn])
+  }, [isExplorerEnabled, pieces, playerColor, premovePreview.previewPieces, turn])
+
+  const canControlPiece = useCallback((piece?: string) => {
+    const pieceColor = getPieceColor(piece)
+    if (!pieceColor) return false
+    if (explorerMode === 'god') return true
+    if (explorerMode === 'normal') return pieceColor === turn
+    return pieceColor === playerColor
+  }, [explorerMode, playerColor, turn])
+
+  const getPlayableGame = useCallback((moveColor: Color) => {
+    if (!isGodExplorerMode || moveColor === turn) return boardView
+    return createGameWithTurn(position, moveColor)
+  }, [boardView, isGodExplorerMode, position, turn])
 
   const setArrows = useCallback((next: Arrow[] | ((prev: Arrow[]) => Arrow[])) => {
     const resolved = typeof next === 'function' ? next(activeArrows) : next
@@ -501,15 +534,23 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     onPositionChange?.(chess.fen(), move)
   }, [chess, onPositionChange])
 
-  const executeMove = useCallback((from: string, to: string, promotion?: 'q' | 'r' | 'b' | 'n') => {
+  const executeMove = useCallback((from: string, to: string, promotion?: PromotionPiece, moveColor?: Color) => {
     if (chess.fen() !== position) return null
+    const resolvedMoveColor = moveColor ?? getPieceColor(pieces[from]) ?? turn
+    const isOffTurnExplorerMove = isGodExplorerMode && resolvedMoveColor !== turn
+    const moveGame = isOffTurnExplorerMove ? createGameWithTurn(position, resolvedMoveColor) : chess
+    if (!moveGame) return null
+
     try {
-      const move = chess.move({
+      const move = moveGame.move({
         from: from as Square,
         to: to as Square,
         promotion,
       })
       if (!move) return null
+      if (isOffTurnExplorerMove) {
+        chess.load(moveGame.fen())
+      }
       setSelectedSquare(null)
       setLegalMoves([])
       setPromotionPending(null)
@@ -522,7 +563,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return null
     }
-  }, [chess, emitPositionChange, onMove, position, setArrows])
+  }, [chess, emitPositionChange, isGodExplorerMode, onMove, pieces, position, setArrows, turn])
 
   const defaultCanQueuePremove = useCallback((premove: PremoveState) => {
     if (relaxedPremoveMode) {
@@ -554,7 +595,17 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     return piece[0] === 'w' ? destinationRank === 8 : destinationRank === 1
   }, [premovePreview.previewPieces])
 
-  const queuePremove = useCallback((from: string, to: string, promotion?: 'q' | 'r' | 'b' | 'n') => {
+  const needsPlayablePromotion = useCallback((from: string, to: string, moveColor: Color) => {
+    const playableGame = getPlayableGame(moveColor)
+    if (!playableGame) return false
+    try {
+      return needsPromotion(playableGame, from, to)
+    } catch {
+      return false
+    }
+  }, [getPlayableGame])
+
+  const queuePremove = useCallback((from: string, to: string, promotion?: PromotionPiece) => {
     const premove: PremoveState = { from, to, promotion }
     const canQueue = canQueuePremove
       ? canQueuePremove({ premove, chess, position, playerColor })
@@ -568,9 +619,22 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [canQueuePremove, chess, defaultCanQueuePremove, onPremoveAdd, playerColor, position, setPremoves])
 
   const getSelectableMoves = useCallback((square: string) => {
-    const planningPieces = turn === playerColor ? pieces : premovePreview.previewPieces
+    const planningPieces = isExplorerEnabled || turn === playerColor ? pieces : premovePreview.previewPieces
     const piece = planningPieces[square]
-    if (!piece || piece[0] !== playerColor) return []
+    const pieceColor = getPieceColor(piece)
+    if (!pieceColor) return []
+
+    if (explorerMode === 'god') {
+      const playableGame = getPlayableGame(pieceColor)
+      return playableGame ? getLegalMoves(playableGame, square).map((move) => move.to) : []
+    }
+
+    if (explorerMode === 'normal') {
+      if (pieceColor !== turn) return []
+      return getLegalMoves(boardView, square).map((move) => move.to)
+    }
+
+    if (pieceColor !== playerColor) return []
     if (turn === playerColor) {
       return getLegalMoves(boardView, square).map((move) => move.to)
     }
@@ -583,7 +647,19 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return []
     }
-  }, [boardView, pieces, playerColor, premovePreview.previewCastlingRights, premovePreview.previewFen, premovePreview.previewPieces, relaxedPremoveMode, turn])
+  }, [
+    boardView,
+    explorerMode,
+    getPlayableGame,
+    isExplorerEnabled,
+    pieces,
+    playerColor,
+    premovePreview.previewCastlingRights,
+    premovePreview.previewFen,
+    premovePreview.previewPieces,
+    relaxedPremoveMode,
+    turn,
+  ])
 
   const handleSquareClick = useCallback((square: string) => {
     if (promotionPending) return
@@ -597,14 +673,16 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       }
 
       const selectedPiece = getPlanningPiece(selectedSquare)
-      if (!selectedPiece || selectedPiece[0] !== playerColor) {
+      const selectedPieceColor = getPieceColor(selectedPiece)
+      if (!selectedPieceColor || !canControlPiece(selectedPiece)) {
         setSelectedSquare(null)
         setLegalMoves([])
         return
       }
 
-      if (turn === playerColor) {
-        if (needsPromotion(boardView, selectedSquare, square)) {
+      const shouldExecuteMove = isExplorerEnabled || turn === playerColor
+      if (shouldExecuteMove) {
+        if (needsPlayablePromotion(selectedSquare, square, selectedPieceColor)) {
           setPromotionPending({ from: selectedSquare, to: square })
           return
         }
@@ -613,12 +691,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
         return
       }
 
-      const actionSuccessful = turn === playerColor
-        ? Boolean(executeMove(selectedSquare, square))
+      const actionSuccessful = shouldExecuteMove
+        ? Boolean(executeMove(selectedSquare, square, undefined, selectedPieceColor))
         : queuePremove(selectedSquare, square)
       if (actionSuccessful) return
 
-      if (piece && piece[0] === playerColor) {
+      if (canControlPiece(piece)) {
         setSelectedSquare(square)
         setLegalMoves(getSelectableMoves(square))
       } else {
@@ -628,7 +706,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       return
     }
 
-    if (piece && piece[0] === playerColor) {
+    if (canControlPiece(piece)) {
       setSelectedSquare(square)
       setLegalMoves(getSelectableMoves(square))
       return
@@ -637,12 +715,13 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     setSelectedSquare(null)
     setLegalMoves([])
   }, [
-    boardView,
+    canControlPiece,
     executeMove,
     getPlanningPiece,
     getSelectableMoves,
+    isExplorerEnabled,
+    needsPlayablePromotion,
     needsPremovePromotion,
-    playerColor,
     promotionPending,
     queuePremove,
     selectedSquare,
@@ -651,14 +730,17 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
   const handlePromotion = useCallback((promotionPiece: string) => {
     if (!promotionPending) return
-    const promotion = promotionPiece as 'q' | 'r' | 'b' | 'n'
-    if (turn === playerColor) {
+    const promotion = promotionPiece as PromotionPiece
+    const pendingPieceColor = getPieceColor(getPlanningPiece(promotionPending.from))
+    if (isExplorerEnabled && pendingPieceColor) {
+      executeMove(promotionPending.from, promotionPending.to, promotion, pendingPieceColor)
+    } else if (turn === playerColor) {
       executeMove(promotionPending.from, promotionPending.to, promotion)
     } else {
       queuePremove(promotionPending.from, promotionPending.to, promotion)
     }
     setPromotionPending(null)
-  }, [executeMove, playerColor, promotionPending, queuePremove, turn])
+  }, [executeMove, getPlanningPiece, isExplorerEnabled, playerColor, promotionPending, queuePremove, turn])
 
   const startPieceDrag = useCallback((piece: string, from: string, clientX: number, clientY: number) => {
     setSelectedSquare(from)
@@ -677,16 +759,21 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (col >= 0 && col < 8 && row >= 0 && row < 8) {
         const toSquare = getSquareName(col, row, isFlipped)
         if (dragState.from !== toSquare) {
+          const dragPieceColor = getPieceColor(dragState.piece)
+          if (!dragPieceColor) {
+            setDragging(null)
+            return
+          }
           // Browsers dispatch a click after pointerup. Ignore that click so a
           // completed drag does not immediately select the piece again.
           suppressBoardClickUntilRef.current = performance.now() + 250
-          if (turn === playerColor) {
-            if (needsPromotion(boardView, dragState.from, toSquare)) {
+          if (isExplorerEnabled || turn === playerColor) {
+            if (needsPlayablePromotion(dragState.from, toSquare, dragPieceColor)) {
               setPromotionPending({ from: dragState.from, to: toSquare })
               setDragging(null)
               return
             }
-            executeMove(dragState.from, toSquare)
+            executeMove(dragState.from, toSquare, undefined, dragPieceColor)
           } else {
             if (needsPremovePromotion(dragState.from, toSquare)) {
               setPromotionPending({ from: dragState.from, to: toSquare })
@@ -700,9 +787,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
     setDragging(null)
   }, [
-    boardView,
     executeMove,
+    isExplorerEnabled,
     isFlipped,
+    needsPlayablePromotion,
     needsPremovePromotion,
     playerColor,
     queuePremove,
@@ -722,7 +810,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
     if (e.button !== 0 || promotionPending) return
     const piece = getPlanningPiece(square)
-    if (!piece || piece[0] !== playerColor) return
+    if (!canControlPiece(piece)) return
 
     if (e.pointerType === 'mouse') {
       e.preventDefault()
@@ -740,7 +828,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
     dragPointerRef.current = { x: e.clientX, y: e.clientY }
     setIsTouchDragPending(true)
-  }, [getPlanningPiece, playerColor, promotionPending, startPieceDrag])
+  }, [canControlPiece, getPlanningPiece, promotionPending, startPieceDrag])
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     const pendingTouchDrag = pendingTouchDragRef.current
@@ -1070,6 +1158,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   }, [])
 
   useSafeLayoutEffect(() => {
+    if (isExplorerEnabled) return
     if (promotionPending || activePremoves.length === 0) return
     if (turn !== playerColor) return
     if (chess.fen() !== position) return
@@ -1100,6 +1189,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     activePremoves,
     chess,
     emitPositionChange,
+    isExplorerEnabled,
     onMove,
     onPremoveExecute,
     onPremoveReject,
@@ -1169,9 +1259,14 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     })
   }
 
-  const renderedPieces = activePremoves.length > 0 && turn !== playerColor
+  const renderedPieces = !isExplorerEnabled && activePremoves.length > 0 && turn !== playerColor
     ? premovePreview.previewPieces
     : pieces
+
+  const promotionColor = useMemo<Color>(() => {
+    if (!isExplorerEnabled || !promotionPending) return playerColor
+    return getPieceColor(getPlanningPiece(promotionPending.from)) ?? playerColor
+  }, [getPlanningPiece, isExplorerEnabled, playerColor, promotionPending])
 
   const handleBoardSquareClick = useCallback((square: string) => {
     if (performance.now() <= suppressBoardClickUntilRef.current) {
@@ -1269,7 +1364,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
           <PromotionDialog
             pending={promotionPending}
-            playerColor={playerColor}
+            playerColor={promotionColor}
             squareSize={squareSize}
             boardSize={boardSize}
             isFlipped={isFlipped}

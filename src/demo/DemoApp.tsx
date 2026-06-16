@@ -77,9 +77,9 @@ function DemoApp() {
     if (boardMode === 'analysis') {
       setMockBadge(pickRandomBadge())
     }
-    if (move.color === 'w') {
-      queueRandomBlackMove()
-    }
+    // if (move.color === 'w') {
+    //   queueRandomBlackMove()
+    // }
   }, [boardMode, queueRandomBlackMove])
 
   const switchMode = useCallback((nextMode: ChessBoardMode) => {
@@ -231,6 +231,7 @@ function DemoApp() {
           liveColor: '#15781B',
           liveOpacity: 0.6,
         }}
+        explorerMode="normal"
       />
     </div>
   )
