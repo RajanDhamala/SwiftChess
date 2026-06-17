@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react'
 import { buildArrowShape } from '../../utils/arrowUtils'
+import { getSquareCoords } from '../../utils/chessUtils'
 import type { Arrow } from './types'
 
 interface ArrowLayerProps {
   arrows: Arrow[]
   overlayArrows: Arrow[]
+  circles: string[]
   drawingArrow: boolean
   boardSize: number
   squareSize: number
@@ -20,11 +22,14 @@ interface ArrowLayerProps {
   liveArrowColor: string
   liveArrowOpacity: number
   liveArrowWidthScale: number
+  circleColor: string
+  circleOpacity: number
 }
 
 export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
   arrows,
   overlayArrows,
+  circles,
   drawingArrow,
   boardSize,
   squareSize,
@@ -40,7 +45,24 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
   liveArrowColor,
   liveArrowOpacity,
   liveArrowWidthScale,
+  circleColor,
+  circleOpacity,
 }) => {
+  const circleData = useMemo(() => (
+    circles.map((square) => {
+      const { col, row } = getSquareCoords(square, isFlipped)
+      const strokeWidth = Math.max(3, Math.min(8, squareSize * 0.07))
+      const edgeInset = squareSize * 0.04
+      return {
+        square,
+        cx: col * squareSize + squareSize / 2,
+        cy: row * squareSize + squareSize / 2,
+        radius: squareSize / 2 - edgeInset - strokeWidth / 2,
+        strokeWidth,
+      }
+    })
+  ), [circles, isFlipped, squareSize])
+
   const arrowData = useMemo(() => {
     const renderEntries = [
       ...overlayArrows.map((arrow, index) => ({
@@ -96,6 +118,19 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
       height={boardSize}
       className="absolute top-0 left-0 pointer-events-none z-10"
     >
+      {circleData.map((circle) => (
+        <circle
+          key={circle.square}
+          cx={circle.cx}
+          cy={circle.cy}
+          r={circle.radius}
+          fill="none"
+          stroke={circleColor}
+          strokeWidth={circle.strokeWidth}
+          opacity={circleOpacity}
+        />
+      ))}
+
       {arrowData.map((arrow) => {
         if (!arrow) return null
         return (

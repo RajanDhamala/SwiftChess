@@ -145,6 +145,10 @@ const DEFAULT_OVERLAY_ARROW_STYLE = {
   opacity: 0.56,
   widthScale: 1 / 5,
 }
+const DEFAULT_CIRCLE_STYLE = {
+  color: '#15781B',
+  opacity: 0.6,
+}
 const DEFAULT_SOUND_SRCS = {
   move: moveSoundSrc,
   capture: captureSoundSrc,
@@ -384,6 +388,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const [legalMoves, setLegalMoves] = useState<string[]>([])
   const [dragging, setDragging] = useState<DragState | null>(null)
   const [drawingArrow, setDrawingArrow] = useState<{ from: string } | null>(null)
+  const [markedSquares, setMarkedSquares] = useState<string[]>([])
   const [promotionPending, setPromotionPending] = useState<PromotionPendingState | null>(null)
   const [isFlipped, setIsFlipped] = useState(flipped)
   const [containerWidth, setContainerWidth] = useState(
@@ -564,6 +569,19 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     commitUserArrows([], { action: 'clear' })
   }, [commitUserArrows])
 
+  const clearUserAnnotations = useCallback(() => {
+    clearUserArrows()
+    setMarkedSquares([])
+  }, [clearUserArrows])
+
+  const toggleMarkedSquare = useCallback((square: string) => {
+    setMarkedSquares((prev) => (
+      prev.includes(square)
+        ? prev.filter((markedSquare) => markedSquare !== square)
+        : [...prev, square]
+    ))
+  }, [])
+
   const toggleUserArrow = useCallback((from: string, to: string) => {
     const existing = activeUserArrows.findIndex(
       (arrow) => arrow.from === from && arrow.to === to,
@@ -672,7 +690,6 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setSelectedSquare(null)
       setLegalMoves([])
       setPromotionPending(null)
-      clearUserArrows()
       redoStackRef.current = []
       internalMutationRef.current = 'move'
       onMove?.(move)
@@ -681,7 +698,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return null
     }
-  }, [chess, clearUserArrows, emitPositionChange, isGodExplorerMode, onMove, pieces, position, turn])
+  }, [chess, emitPositionChange, isGodExplorerMode, onMove, pieces, position, turn])
 
   const defaultCanQueuePremove = useCallback((premove: PremoveState) => {
     if (relaxedPremoveMode) {
@@ -787,6 +804,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (selectedSquare === square) {
         setSelectedSquare(null)
         setLegalMoves([])
+        if (activePremoves.length > 0) setPremoves([])
+        clearUserAnnotations()
         return
       }
 
@@ -820,6 +839,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       } else {
         setSelectedSquare(null)
         setLegalMoves([])
+        if (activePremoves.length > 0) setPremoves([])
+        clearUserAnnotations()
       }
       return
     }
@@ -832,8 +853,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
 
     setSelectedSquare(null)
     setLegalMoves([])
+    if (activePremoves.length > 0) setPremoves([])
+    clearUserAnnotations()
   }, [
+    activePremoves.length,
     canControlPiece,
+    clearUserAnnotations,
     executeMove,
     getPlanningPiece,
     getSelectableMoves,
@@ -843,6 +868,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     promotionPending,
     queuePremove,
     selectedSquare,
+    setPremoves,
     turn,
   ])
 
@@ -863,11 +889,10 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const startPieceDrag = useCallback((piece: string, from: string, clientX: number, clientY: number) => {
     setSelectedSquare(from)
     setLegalMoves(getSelectableMoves(from))
-    clearUserArrows()
     dragPointerRef.current = { x: clientX, y: clientY }
     setDragging({ piece, from })
     scheduleOverlayFrame()
-  }, [clearUserArrows, getSelectableMoves])
+  }, [getSelectableMoves])
 
   const dropPiece = useCallback((dragState: DragState, clientX: number, clientY: number) => {
     const rect = boardRef.current?.getBoundingClientRect()
@@ -982,8 +1007,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
           if (drawingArrow.from !== toSquare) {
             toggleUserArrow(drawingArrow.from, toSquare)
           } else {
-            if (activePremoves.length > 0) setPremoves([])
-            clearUserArrows()
+            toggleMarkedSquare(toSquare)
           }
         }
       }
@@ -1008,14 +1032,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     if (!dragging) return
     dropPiece(dragging, e.clientX, e.clientY)
   }, [
-    activePremoves.length,
-    clearUserArrows,
     dragging,
     drawingArrow,
     dropPiece,
     emitLiveArrow,
-    setPremoves,
     squareSize,
+    toggleMarkedSquare,
     toggleUserArrow,
   ])
 
@@ -1059,7 +1081,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setPromotionPending(null)
       setDragging(null)
       emitLiveArrow(null)
-      clearUserArrows()
+      clearUserAnnotations()
       setPremoves([])
       redoStackRef.current = []
       internalMutationRef.current = 'load'
@@ -1068,7 +1090,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return false
     }
-  }, [chess, clearUserArrows, emitLiveArrow, emitPositionChange, setPremoves])
+  }, [chess, clearUserAnnotations, emitLiveArrow, emitPositionChange, setPremoves])
 
   const goToPreviousMove = useCallback(() => {
     if (chess.fen() !== position) return false
@@ -1457,6 +1479,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
           <ArrowLayer
             arrows={activeUserArrows}
             overlayArrows={overlayArrows}
+            circles={markedSquares}
             drawingArrow={Boolean(drawingArrow)}
             boardSize={boardSize}
             squareSize={squareSize}
@@ -1472,6 +1495,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             liveArrowColor={mergedLiveArrowStyle.color}
             liveArrowOpacity={mergedLiveArrowStyle.opacity}
             liveArrowWidthScale={mergedLiveArrowStyle.widthScale}
+            circleColor={DEFAULT_CIRCLE_STYLE.color}
+            circleOpacity={DEFAULT_CIRCLE_STYLE.opacity}
           />
 
           <PromotionDialog

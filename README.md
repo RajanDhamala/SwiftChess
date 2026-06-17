@@ -258,7 +258,8 @@ boardRef.current?.resetToInitialFen()
 ### Interaction shortcuts
 
 - Right-drag: draw/toggle arrows.
-- Right-click on the same square (no drag): clear queued premoves and arrows.
+- Right-click on the same square (no drag): toggle a circle marker.
+- Left-click a neutral square: clear queued premoves and user annotations.
 
 ### Arrow customization (pass from API)
 

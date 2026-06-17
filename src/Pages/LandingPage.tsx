@@ -82,6 +82,10 @@ function getStatus(game: Chess, thinking: boolean, playerColor: Color) {
   return 'Opponent to move'
 }
 
+function getInitialViewportWidth() {
+  return typeof window !== 'undefined' ? window.innerWidth : 1200
+}
+
 function LandingPage() {
   const [chess] = useState(() => new Chess())
   const [position, setPosition] = useState(chess.fen())
@@ -92,8 +96,8 @@ function LandingPage() {
   const [showLegalMoves, setShowLegalMoves] = useState(true)
   const [resizable, setResizable] = useState(false)
   const [theme, setTheme] = useState<BoardThemePreset>('brownBoard')
-  const [requestedBoardSize, setRequestedBoardSize] = useState(520)
-  const [viewportWidth, setViewportWidth] = useState(1200)
+  const [requestedBoardSize, setRequestedBoardSize] = useState(600)
+  const [viewportWidth, setViewportWidth] = useState(() => getInitialViewportWidth())
   const [thinking, setThinking] = useState(false)
   const [badge, setBadge] = useState<MoveBadge | null>(null)
   const [canPrevious, setCanPrevious] = useState(false)
