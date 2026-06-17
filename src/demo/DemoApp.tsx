@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import type { Move } from 'chess.js'
 import {
   ChessBoard,
+  type Arrow,
   type BoardThemePreset,
   type ChessBoardHandle,
   type ChessBoardMode,
   type MoveBadge,
+  type MoveBadgeByPly,
 } from '../lib'
 
 const BOARD_THEME_OPTIONS: Array<{ value: BoardThemePreset; label: string }> = [
@@ -43,11 +45,21 @@ function DemoApp() {
   const [boardResizable, setBoardResizable] = useState(false)
   const [fillContainer, setFillContainer] = useState(false)
   const [showLegalMoves, setShowLegalMoves] = useState(true)
-  const [mockBadge, setMockBadge] = useState<MoveBadge | null>(null)
+  const [moveBadges, setMoveBadges] = useState<MoveBadgeByPly[]>([])
+  const [userArrows, setUserArrows] = useState<Arrow[]>([])
   const [canPrev, setCanPrev] = useState(false)
   const [canNext, setCanNext] = useState(false)
   const blackReplyTimerRef = useRef<number | null>(null)
   const boardRef = useRef<ChessBoardHandle>(null)
+  const overlayArrows = useMemo<Arrow[]>(
+    () => boardMode === 'analysis'
+      ? [
+        { id: 'demo-engine-e2-e4', from: 'e2', to: 'e4' },
+        { id: 'demo-engine-g1-f3', from: 'g1', to: 'f3', opacity: 0.42 },
+      ]
+      : [],
+    [boardMode],
+  )
 
   const syncTimelineButtons = useCallback(() => {
     setCanPrev(Boolean(boardRef.current?.canGoToPreviousMove()))
@@ -73,23 +85,34 @@ function DemoApp() {
     }, 1000)
   }, [chess])
 
-  const handleMove = useCallback((move: Move) => {
+  const ensureCurrentPlyBadge = useCallback(() => {
+    const ply = chess.history().length
+    if (ply === 0) return
+    setMoveBadges((current) => current.some((item) => item.ply === ply)
+      ? current
+      : [...current, { ply, badge: pickRandomBadge() }])
+  }, [chess])
+
+  const handleMove = useCallback((_move: Move) => {
     if (boardMode === 'analysis') {
-      setMockBadge(pickRandomBadge())
+      const ply = chess.history().length
+      setMoveBadges((current) => [
+        ...current.filter((item) => item.ply !== ply),
+        { ply, badge: pickRandomBadge() },
+      ])
     }
     // if (move.color === 'w') {
     //   queueRandomBlackMove()
     // }
-  }, [boardMode, queueRandomBlackMove])
+  }, [boardMode, chess, queueRandomBlackMove])
 
   const switchMode = useCallback((nextMode: ChessBoardMode) => {
     setBoardMode(nextMode)
     if (nextMode === 'analysis') {
-      setMockBadge(pickRandomBadge())
+      ensureCurrentPlyBadge()
       return
     }
-    setMockBadge(null)
-  }, [])
+  }, [ensureCurrentPlyBadge])
 
   useEffect(() => {
     syncTimelineButtons()
@@ -209,7 +232,7 @@ function DemoApp() {
         chess={chess}
         position={position}
         mode={boardMode}
-        lastMoveBadge={boardMode === 'analysis' ? mockBadge : null}
+        moveBadges={boardMode === 'analysis' ? moveBadges : undefined}
         playerColor="w"
         onPositionChange={(fen) => setPosition(fen)}
         onMove={handleMove}
@@ -225,11 +248,20 @@ function DemoApp() {
         maxSize={96}
         showStatusBar
         className="w-full flex justify-center"
+        overlayArrows={overlayArrows}
+        arrows={userArrows}
+        onArrowsChange={setUserArrows}
         arrowStyle={{
           color: '#15781B',
           opacity: 0.6,
-          liveColor: '#15781B',
-          liveOpacity: 0.6,
+        }}
+        overlayArrowStyle={{
+          color: '#2563eb',
+          opacity: 0.5,
+        }}
+        liveArrowStyle={{
+          color: '#f97316',
+          opacity: 0.62,
         }}
         explorerMode="normal"
       />

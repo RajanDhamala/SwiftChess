@@ -10,7 +10,15 @@ export type {
   ChessBoardMode,
   ChessBoardExplorerMode,
   MoveBadge,
+  MoveBadgeByPly,
   MoveBadgeKind,
 } from '../components/ChessBoard'
 export { BOARD_THEME_PRESETS } from '../components/ChessBoard'
-export type { Arrow, PremoveState, ArrowStyleOptions } from '../components/chessboard/types'
+export type {
+  Arrow,
+  ArrowCommitAction,
+  ArrowCommitEvent,
+  ArrowStyleOptions,
+  LiveArrow,
+  PremoveState,
+} from '../components/chessboard/types'

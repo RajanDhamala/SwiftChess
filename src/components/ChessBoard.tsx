@@ -22,11 +22,14 @@ import { CapturedPiecesRow } from './chessboard/CapturedPiecesRow'
 import { BOARD_THEME_PRESETS } from './chessboard/types'
 import type {
   Arrow,
+  ArrowCommitAction,
+  ArrowCommitEvent,
   ArrowStyleOptions,
   BoardThemeColors,
   BoardThemePreset,
   DragState,
   LastMoveState,
+  LiveArrow,
   PremoveState,
   PromotionPendingState,
 } from './chessboard/types'
@@ -54,6 +57,11 @@ export interface MoveBadge {
   src?: string
 }
 
+export interface MoveBadgeByPly {
+  ply: number
+  badge: MoveBadge
+}
+
 export interface PremoveValidationArgs {
   premove: PremoveState
   chess: Chess
@@ -67,17 +75,24 @@ export interface ChessBoardProps {
   onPositionChange?: (fen: string, move?: Move) => void
   onMove?: (move: Move) => void
   lastMoveBadge?: MoveBadge | null
+  moveBadges?: MoveBadgeByPly[]
   onPremoveAdd?: (premove: PremoveState) => void
   onPremoveExecute?: (premove: PremoveState, move: Move) => void
   onPremoveReject?: (premove: PremoveState) => void
   canQueuePremove?: (args: PremoveValidationArgs) => boolean
   premoves?: PremoveState[]
   onPremovesChange?: (premoves: PremoveState[]) => void
+  overlayArrows?: Arrow[]
   arrows?: Arrow[]
+  defaultArrows?: Arrow[]
   onArrowsChange?: (arrows: Arrow[]) => void
+  onArrowCommit?: (event: ArrowCommitEvent) => void
+  onLiveArrowChange?: (arrow: LiveArrow | null) => void
   customArrows?: Arrow[]
   onCustomArrowsChange?: (arrows: Arrow[]) => void
   arrowStyle?: ArrowStyleOptions
+  overlayArrowStyle?: ArrowStyleOptions
+  liveArrowStyle?: ArrowStyleOptions
   capturedWhitePieces?: string[]
   capturedBlackPieces?: string[]
   mode?: ChessBoardMode
@@ -125,6 +140,11 @@ const DEFAULT_ARROW_STYLE: Required<ArrowStyleOptions> = {
   liveColor: '#15781B',
   liveOpacity: 0.6,
 }
+const DEFAULT_OVERLAY_ARROW_STYLE = {
+  color: '#2563eb',
+  opacity: 0.56,
+  widthScale: 1 / 5,
+}
 const DEFAULT_SOUND_SRCS = {
   move: moveSoundSrc,
   capture: captureSoundSrc,
@@ -139,6 +159,10 @@ function clampBoardSize(size: number, minSquareSize: number, maxSquareSize: numb
   const minBoardSize = Math.max(minSquareSize, 1) * 8
   const maxBoardSize = (Number.isFinite(maxSquareSize) ? maxSquareSize : Number.POSITIVE_INFINITY) * 8
   return Math.max(minBoardSize, Math.min(maxBoardSize, size))
+}
+
+function areLiveArrowsEqual(left: LiveArrow | null, right: LiveArrow | null) {
+  return left?.from === right?.from && left?.to === right?.to
 }
 
 function removeCastlingRights(castlingRights: string, flags: string[]) {
@@ -276,17 +300,24 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   onPositionChange,
   onMove,
   lastMoveBadge,
+  moveBadges,
   onPremoveAdd,
   onPremoveExecute,
   onPremoveReject,
   canQueuePremove,
   premoves,
   onPremovesChange,
+  overlayArrows = [],
   arrows,
+  defaultArrows,
   onArrowsChange,
+  onArrowCommit,
+  onLiveArrowChange,
   customArrows,
   onCustomArrowsChange,
   arrowStyle,
+  overlayArrowStyle,
+  liveArrowStyle,
   capturedWhitePieces,
   capturedBlackPieces,
   mode = 'play',
@@ -319,6 +350,28 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     () => ({ ...DEFAULT_ARROW_STYLE, ...arrowStyle }),
     [arrowStyle],
   )
+  const mergedOverlayArrowStyle = useMemo(
+    () => ({
+      ...DEFAULT_OVERLAY_ARROW_STYLE,
+      ...overlayArrowStyle,
+    }),
+    [overlayArrowStyle],
+  )
+  const mergedLiveArrowStyle = useMemo(
+    () => ({
+      color: liveArrowStyle?.color ?? mergedArrowStyle.liveColor,
+      opacity: liveArrowStyle?.opacity ?? mergedArrowStyle.liveOpacity,
+      widthScale: liveArrowStyle?.widthScale ?? mergedArrowStyle.widthScale,
+    }),
+    [
+      liveArrowStyle?.color,
+      liveArrowStyle?.opacity,
+      liveArrowStyle?.widthScale,
+      mergedArrowStyle.liveColor,
+      mergedArrowStyle.liveOpacity,
+      mergedArrowStyle.widthScale,
+    ],
+  )
   const mergedBoardTheme = useMemo(
     () => ({
       ...(BOARD_THEME_PRESETS[boardThemePreset] ?? BOARD_THEME_PRESETS.brownBoard),
@@ -339,7 +392,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const [userBoardSize, setUserBoardSize] = useState<number | null>(null)
   const [isTouchDragPending, setIsTouchDragPending] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
-  const [internalArrows, setInternalArrows] = useState<Arrow[]>([])
+  const [internalArrows, setInternalArrows] = useState<Arrow[]>(() => defaultArrows ?? [])
   const [internalPremoves, setInternalPremoves] = useState<PremoveState[]>([])
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -350,6 +403,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const dragGhostRef = useRef<HTMLDivElement>(null)
   const liveArrowPathRef = useRef<SVGPathElement>(null)
   const liveArrowHeadRef = useRef<SVGPolygonElement>(null)
+  const currentLiveArrowRef = useRef<LiveArrow | null>(null)
   const rafRef = useRef<number | null>(null)
   const resizeRafRef = useRef<number | null>(null)
   const pendingTouchDragRef = useRef<{ pointerId: number; from: string; piece: string; startX: number; startY: number; active: boolean } | null>(null)
@@ -394,7 +448,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     void audio.play().catch(() => { })
   }, [enableSounds])
 
-  const activeArrows = arrows ?? customArrows ?? internalArrows
+  const activeUserArrows = arrows ?? customArrows ?? internalArrows
   const activePremoves = premoves ?? internalPremoves
   const setBoardFlipped = useCallback((next: boolean | ((prev: boolean) => boolean)) => {
     setIsFlipped((prev) => {
@@ -467,14 +521,78 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     return createGameWithTurn(position, moveColor)
   }, [boardView, isGodExplorerMode, position, turn])
 
-  const setArrows = useCallback((next: Arrow[] | ((prev: Arrow[]) => Arrow[])) => {
-    const resolved = typeof next === 'function' ? next(activeArrows) : next
+  const currentMoveBadge = useMemo(() => {
+    if (lastMoveBadge !== undefined) return lastMoveBadge
+    const currentPly = verboseHistory.length
+    return moveBadges?.find((item) => item.ply === currentPly)?.badge ?? null
+  }, [lastMoveBadge, moveBadges, verboseHistory.length])
+
+  const emitLiveArrow = useCallback((next: LiveArrow | null) => {
+    if (areLiveArrowsEqual(currentLiveArrowRef.current, next)) return
+    currentLiveArrowRef.current = next
+    onLiveArrowChange?.(next)
+  }, [onLiveArrowChange])
+
+  const commitUserArrows = useCallback((
+    next: Arrow[] | ((prev: Arrow[]) => Arrow[]),
+    commit?: { action: ArrowCommitAction; arrow?: Arrow },
+  ) => {
+    const previousArrows = activeUserArrows
+    const resolved = typeof next === 'function' ? next(previousArrows) : next
     if (arrows === undefined && customArrows === undefined) {
       setInternalArrows(resolved)
     }
     onArrowsChange?.(resolved)
     onCustomArrowsChange?.(resolved)
-  }, [activeArrows, arrows, customArrows, onArrowsChange, onCustomArrowsChange])
+    if (commit) {
+      onArrowCommit?.({
+        ...commit,
+        previousArrows,
+        nextArrows: resolved,
+      })
+    }
+  }, [
+    activeUserArrows,
+    arrows,
+    customArrows,
+    onArrowCommit,
+    onArrowsChange,
+    onCustomArrowsChange,
+  ])
+
+  const clearUserArrows = useCallback(() => {
+    commitUserArrows([], { action: 'clear' })
+  }, [commitUserArrows])
+
+  const toggleUserArrow = useCallback((from: string, to: string) => {
+    const existing = activeUserArrows.findIndex(
+      (arrow) => arrow.from === from && arrow.to === to,
+    )
+
+    if (existing >= 0) {
+      const arrow = activeUserArrows[existing]
+      commitUserArrows(
+        activeUserArrows.filter((_, index) => index !== existing),
+        { action: 'remove', arrow },
+      )
+      return
+    }
+
+    const arrow: Arrow = {
+      from,
+      to,
+      color: mergedArrowStyle.color,
+      opacity: mergedArrowStyle.opacity,
+      widthScale: mergedArrowStyle.widthScale,
+    }
+    commitUserArrows([...activeUserArrows, arrow], { action: 'add', arrow })
+  }, [
+    activeUserArrows,
+    commitUserArrows,
+    mergedArrowStyle.color,
+    mergedArrowStyle.opacity,
+    mergedArrowStyle.widthScale,
+  ])
 
   const setPremoves = useCallback((next: PremoveState[] | ((prev: PremoveState[]) => PremoveState[])) => {
     const resolved = typeof next === 'function' ? next(activePremoves) : next
@@ -554,7 +672,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setSelectedSquare(null)
       setLegalMoves([])
       setPromotionPending(null)
-      setArrows([])
+      clearUserArrows()
       redoStackRef.current = []
       internalMutationRef.current = 'move'
       onMove?.(move)
@@ -563,7 +681,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return null
     }
-  }, [chess, emitPositionChange, isGodExplorerMode, onMove, pieces, position, setArrows, turn])
+  }, [chess, clearUserArrows, emitPositionChange, isGodExplorerMode, onMove, pieces, position, turn])
 
   const defaultCanQueuePremove = useCallback((premove: PremoveState) => {
     if (relaxedPremoveMode) {
@@ -745,11 +863,11 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
   const startPieceDrag = useCallback((piece: string, from: string, clientX: number, clientY: number) => {
     setSelectedSquare(from)
     setLegalMoves(getSelectableMoves(from))
-    setArrows([])
+    clearUserArrows()
     dragPointerRef.current = { x: clientX, y: clientY }
     setDragging({ piece, from })
     scheduleOverlayFrame()
-  }, [getSelectableMoves, setArrows])
+  }, [clearUserArrows, getSelectableMoves])
 
   const dropPiece = useCallback((dragState: DragState, clientX: number, clientY: number) => {
     const rect = boardRef.current?.getBoundingClientRect()
@@ -804,6 +922,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       drawPointerRef.current = { x: e.clientX, y: e.clientY }
       boardRectRef.current = boardRef.current?.getBoundingClientRect() ?? null
       setDrawingArrow({ from: square })
+      emitLiveArrow({ from: square })
       scheduleOverlayFrame()
       return
     }
@@ -828,7 +947,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     }
     dragPointerRef.current = { x: e.clientX, y: e.clientY }
     setIsTouchDragPending(true)
-  }, [canControlPiece, getPlanningPiece, promotionPending, startPieceDrag])
+  }, [canControlPiece, emitLiveArrow, getPlanningPiece, promotionPending, startPieceDrag])
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     const pendingTouchDrag = pendingTouchDragRef.current
@@ -861,31 +980,15 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
         if (col >= 0 && col < 8 && row >= 0 && row < 8) {
           const toSquare = getSquareName(col, row, isFlipped)
           if (drawingArrow.from !== toSquare) {
-            setArrows((prev) => {
-              const existing = prev.findIndex(
-                (arrow) => arrow.from === drawingArrow.from && arrow.to === toSquare,
-              )
-              if (existing >= 0) {
-                return prev.filter((_, index) => index !== existing)
-              }
-              return [
-                ...prev,
-                {
-                  from: drawingArrow.from,
-                  to: toSquare,
-                  color: mergedArrowStyle.color,
-                  opacity: mergedArrowStyle.opacity,
-                  widthScale: mergedArrowStyle.widthScale,
-                },
-              ]
-            })
+            toggleUserArrow(drawingArrow.from, toSquare)
           } else {
             if (activePremoves.length > 0) setPremoves([])
-            setArrows([])
+            clearUserArrows()
           }
         }
       }
       setDrawingArrow(null)
+      emitLiveArrow(null)
       if (liveArrowPathRef.current) liveArrowPathRef.current.setAttribute('d', '')
       if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
       boardRectRef.current = null
@@ -906,15 +1009,14 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     dropPiece(dragging, e.clientX, e.clientY)
   }, [
     activePremoves.length,
+    clearUserArrows,
     dragging,
     drawingArrow,
     dropPiece,
-    mergedArrowStyle.color,
-    mergedArrowStyle.opacity,
-    mergedArrowStyle.widthScale,
-    setArrows,
+    emitLiveArrow,
     setPremoves,
     squareSize,
+    toggleUserArrow,
   ])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -956,7 +1058,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       setDrawingArrow(null)
       setPromotionPending(null)
       setDragging(null)
-      setArrows([])
+      emitLiveArrow(null)
+      clearUserArrows()
       setPremoves([])
       redoStackRef.current = []
       internalMutationRef.current = 'load'
@@ -965,7 +1068,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
     } catch {
       return false
     }
-  }, [chess, emitPositionChange, setArrows, setPremoves])
+  }, [chess, clearUserArrows, emitLiveArrow, emitPositionChange, setPremoves])
 
   const goToPreviousMove = useCallback(() => {
     if (chess.fen() !== position) return false
@@ -1218,6 +1321,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (!rect) {
         liveArrowPathRef.current.setAttribute('d', '')
         if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
+        emitLiveArrow({ from: drawingArrow.from })
         return
       }
 
@@ -1227,6 +1331,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (col < 0 || col > 7 || row < 0 || row > 7) {
         liveArrowPathRef.current.setAttribute('d', '')
         if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
+        emitLiveArrow({ from: drawingArrow.from })
         return
       }
 
@@ -1234,6 +1339,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (toSquare === drawingArrow.from) {
         liveArrowPathRef.current.setAttribute('d', '')
         if (liveArrowHeadRef.current) liveArrowHeadRef.current.setAttribute('points', '')
+        emitLiveArrow({ from: drawingArrow.from })
         return
       }
 
@@ -1248,6 +1354,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
       if (liveArrowHeadRef.current) {
         liveArrowHeadRef.current.setAttribute('points', liveShape?.headPoints ?? '')
       }
+      emitLiveArrow({ from: drawingArrow.from, to: toSquare })
     }
   }
 
@@ -1338,7 +1445,7 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             selectedSquare={selectedSquare}
             legalMoves={visibleLegalMoves}
             lastMove={lastMove}
-            lastMoveBadge={lastMoveBadge}
+            lastMoveBadge={currentMoveBadge}
             inCheck={inCheck}
             premoves={activePremoves}
             boardTheme={mergedBoardTheme}
@@ -1348,7 +1455,8 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
           />
 
           <ArrowLayer
-            arrows={activeArrows}
+            arrows={activeUserArrows}
+            overlayArrows={overlayArrows}
             drawingArrow={Boolean(drawingArrow)}
             boardSize={boardSize}
             squareSize={squareSize}
@@ -1358,8 +1466,12 @@ const ChessBoard = React.forwardRef<ChessBoardHandle, ChessBoardProps>(({
             defaultColor={mergedArrowStyle.color}
             defaultOpacity={mergedArrowStyle.opacity}
             defaultWidthScale={mergedArrowStyle.widthScale}
-            liveArrowColor={mergedArrowStyle.liveColor}
-            liveArrowOpacity={mergedArrowStyle.liveOpacity}
+            overlayDefaultColor={mergedOverlayArrowStyle.color}
+            overlayDefaultOpacity={mergedOverlayArrowStyle.opacity}
+            overlayDefaultWidthScale={mergedOverlayArrowStyle.widthScale}
+            liveArrowColor={mergedLiveArrowStyle.color}
+            liveArrowOpacity={mergedLiveArrowStyle.opacity}
+            liveArrowWidthScale={mergedLiveArrowStyle.widthScale}
           />
 
           <PromotionDialog

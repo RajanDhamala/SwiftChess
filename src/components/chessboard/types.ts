@@ -38,11 +38,26 @@ export const BOARD_THEME_PRESETS: Record<BoardThemePreset, BoardThemeColors> = {
 }
 
 export interface Arrow {
+  id?: string
   from: string
   to: string
   color?: string
   opacity?: number
   widthScale?: number
+}
+
+export interface LiveArrow {
+  from: string
+  to?: string
+}
+
+export type ArrowCommitAction = 'add' | 'remove' | 'clear'
+
+export interface ArrowCommitEvent {
+  action: ArrowCommitAction
+  arrow?: Arrow
+  previousArrows: Arrow[]
+  nextArrows: Arrow[]
 }
 
 export interface PremoveState {

@@ -86,6 +86,10 @@ const chess = new Chess()
 - `ChessBoardExplorerMode`
 - `MoveBadgeKind`
 - `MoveBadge`
+- `MoveBadgeByPly`
+- `Arrow`
+- `ArrowCommitEvent`
+- `LiveArrow`
 
 It also exports `BOARD_THEME_PRESETS` for preset color lookup.
 
@@ -98,6 +102,7 @@ It also exports `BOARD_THEME_PRESETS` for preset color lookup.
 | `onPositionChange` | `(fen: string, move?: Move) => void` | - | Fired after board updates position. |
 | `onMove` | `(move: Move) => void` | - | Fired for successful moves (including executed premoves). |
 | `lastMoveBadge` | `{ kind: MoveBadgeKind; label?: string; src?: string } \| null` | - | Renders a PNG badge on the destination square of the latest move. |
+| `moveBadges` | `{ ply: number; badge: MoveBadge }[]` | - | Host-provided move classifications keyed by 1-based ply. Automatically follows previous/next navigation. |
 | `mode` | `'play' \| 'analysis'` | `'play'` | UI mode hint for status and host integration. |
 | `playerColor` | `'w' \| 'b'` | `'w'` | Side controlled by the player. |
 | `explorerMode` | `'off' \| 'normal' \| 'god'` | `'off'` | Controls whether explorer interaction can move non-`playerColor` pieces. |
@@ -175,11 +180,17 @@ Built-in presets:
 
 | Prop | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `arrows` | `Arrow[]` | internal | Controlled arrows. |
-| `onArrowsChange` | `(arrows: Arrow[]) => void` | - | Fired when arrow set changes. |
-| `customArrows` | `Arrow[]` | internal | Backward-compatible alias channel for controlled arrows. |
+| `overlayArrows` | `Arrow[]` | `[]` | Read-only host hints such as engine, explorer, or best-move arrows. User drawing never mutates this list. |
+| `arrows` | `Arrow[]` | internal | Controlled user-drawn annotation arrows. |
+| `defaultArrows` | `Arrow[]` | `[]` | Initial uncontrolled user-drawn annotation arrows. |
+| `onArrowsChange` | `(arrows: Arrow[]) => void` | - | Fired when user-drawn arrows change. |
+| `onArrowCommit` | `(event: ArrowCommitEvent) => void` | - | Fired for user arrow `add`, `remove`, or `clear` actions. |
+| `onLiveArrowChange` | `(arrow: LiveArrow \| null) => void` | - | Observes the transient right-drag preview. It is not persisted. |
+| `customArrows` | `Arrow[]` | internal | Backward-compatible alias for controlled user-drawn arrows. |
 | `onCustomArrowsChange` | `(arrows: Arrow[]) => void` | - | Backward-compatible alias callback. |
-| `arrowStyle` | `ArrowStyleOptions` | internal defaults | Default style for new arrows/live arrow preview. |
+| `arrowStyle` | `ArrowStyleOptions` | internal defaults | Default style for committed user arrows. |
+| `overlayArrowStyle` | `ArrowStyleOptions` | internal defaults | Default style for overlay arrows. |
+| `liveArrowStyle` | `ArrowStyleOptions` | internal defaults | Default style for the live preview. |
 
 ### Board orientation and sizing
 
@@ -251,44 +262,51 @@ boardRef.current?.resetToInitialFen()
 
 ### Arrow customization (pass from API)
 
-Pass arrows from your own state (engine suggestions, last move, analysis lines).  
-The board renders what you pass and also emits updates when users draw arrows.
+Use `overlayArrows` for read-only engine/explorer hints and `arrows` for user-drawn annotations. User drawing emits changes only for `arrows`, so it cannot delete host hints.
 
 ```tsx
-const [arrows, setArrows] = useState<Arrow[]>([
-  { from: 'e2', to: 'e4', color: 'rgb(16,185,129)', opacity: 0.9 },
-])
+const [userArrows, setUserArrows] = useState<Arrow[]>([])
+const engineArrows: Arrow[] = [
+  { from: 'e2', to: 'e4' },
+  { from: 'g1', to: 'f3', opacity: 0.45 },
+]
 
 <ChessBoard
   chess={chess}
   position={position}
-  arrows={arrows}
-  onArrowsChange={setArrows}
+  overlayArrows={engineArrows}
+  arrows={userArrows}
+  onArrowsChange={setUserArrows}
+  onArrowCommit={(event) => {
+    console.log(event.action, event.arrow)
+  }}
   arrowStyle={{
     color: 'rgb(16,185,129)',
     opacity: 0.85,
-    liveColor: 'rgb(59,130,246)',
-    liveOpacity: 0.7,
+  }}
+  overlayArrowStyle={{
+    color: 'rgb(37,99,235)',
+    opacity: 0.55,
+  }}
+  liveArrowStyle={{
+    color: 'rgb(249,115,22)',
+    opacity: 0.65,
   }}
 />
 ```
 
-Use two layers of customization:
-
-- `arrowStyle` sets the defaults for newly drawn arrows + live preview.
-- `arrows` sets exact arrow positions and can override style per arrow (`from`, `to`, `color`, `opacity`, `widthScale`).
+Arrows can override style per item:
 
 ```tsx
-const [arrows, setArrows] = useState([
+const engineArrows: Arrow[] = [
   { from: 'e2', to: 'e4', color: '#10b981', opacity: 0.9 },
   { from: 'b1', to: 'c3', color: '#3b82f6', widthScale: 0.14 },
-])
+]
 
 <ChessBoard
   chess={chess}
   position={position}
-  arrows={arrows}
-  onArrowsChange={setArrows}
+  overlayArrows={engineArrows}
 />
 ```
 
@@ -323,16 +341,24 @@ Queued premoves also render a preview piece map while it is the opponent's turn,
 
 ### Move classification badges
 
-Use `lastMoveBadge` for analysis-board move classifications. The badge is rendered on the latest move destination square and supports bundled Chess.com-style classes:
+Use `moveBadges` for analysis-board move classifications across a navigable game. Badges are keyed by 1-based ply, so `goToPreviousMove()` and `goToNextMove()` automatically show the classification for the currently visible last move.
 
 ```tsx
+const moveBadges: MoveBadgeByPly[] = [
+  { ply: 1, badge: { kind: 'book' } },
+  { ply: 2, badge: { kind: 'best' } },
+  { ply: 3, badge: { kind: 'brilliant' } },
+]
+
 <ChessBoard
   chess={chess}
   position={position}
   mode="analysis"
-  lastMoveBadge={{ kind: 'brilliant' }}
+  moveBadges={moveBadges}
 />
 ```
+
+For simple latest-move displays, `lastMoveBadge` still works and overrides `moveBadges` when provided.
 
 ### Captured pieces from API
 
