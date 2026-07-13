@@ -1,1 +1,40 @@
-@import "tailwindcss";
+@layer swiftchess-properties, swiftchess-theme, swiftchess-base, swiftchess-utilities;
+
+@import "tailwindcss/theme.css" layer(swiftchess-theme) prefix(sw);
+@import "tailwindcss/utilities.css" layer(swiftchess-utilities) prefix(sw) source(none);
+
+@source "../components";
+
+@layer swiftchess-base {
+  .swiftchess-root {
+    box-sizing: border-box;
+  }
+
+  .swiftchess-root *,
+  .swiftchess-root *::before,
+  .swiftchess-root *::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+
+  .swiftchess-root button {
+    appearance: button;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  .swiftchess-root img,
+  .swiftchess-root svg {
+    display: block;
+    vertical-align: middle;
+  }
+
+  .swiftchess-root img {
+    height: auto;
+    max-width: 100%;
+  }
+}
