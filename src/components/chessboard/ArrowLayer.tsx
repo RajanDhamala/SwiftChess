@@ -116,7 +116,7 @@ export const ArrowLayer: React.FC<ArrowLayerProps> = React.memo(({
     <svg
       width={boardSize}
       height={boardSize}
-      className="absolute top-0 left-0 pointer-events-none z-10"
+      className="sw:absolute sw:top-0 sw:left-0 sw:pointer-events-none sw:z-10"
     >
       {circleData.map((circle) => (
         <circle

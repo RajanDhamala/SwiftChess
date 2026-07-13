@@ -13,23 +13,23 @@ export const FenLoader: React.FC<FenLoaderProps> = ({
   onFenInputChange,
   onLoad,
 }) => (
-  <div className="w-full max-w-[576px] bg-white/5 rounded-xl p-3">
-    <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-2">Load Position (FEN)</h3>
-    <div className="flex gap-2">
+  <div className="sw:w-full sw:max-w-[576px] sw:bg-white/5 sw:rounded-xl sw:p-3">
+    <h3 className="sw:text-xs sw:text-gray-400 sw:uppercase sw:tracking-wider sw:mb-2">Load Position (FEN)</h3>
+    <div className="sw:flex sw:gap-2">
       <input
         type="text"
         value={fenInput}
         onChange={(e) => onFenInputChange(e.target.value)}
         placeholder="Paste FEN string..."
-        className="flex-1 bg-black/30 text-[#80cbc4] text-xs rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 focus:outline-none placeholder-gray-600"
+        className="sw:flex-1 sw:bg-black/30 sw:text-[#80cbc4] sw:text-xs sw:rounded sw:px-2 sw:py-1.5 sw:border sw:border-gray-700 sw:focus:border-blue-500 sw:focus:outline-none sw:placeholder-gray-600"
       />
       <button
         onClick={onLoad}
-        className="px-3 py-1.5 rounded bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold transition-colors"
+        className="sw:px-3 sw:py-1.5 sw:rounded sw:bg-violet-600 sw:hover:bg-violet-700 sw:text-white sw:text-xs sw:font-semibold sw:transition-colors"
       >
         Load
       </button>
     </div>
-    {fenError && <p className="text-red-400 text-[10px] mt-1">{fenError}</p>}
+    {fenError && <p className="sw:text-red-400 sw:text-[10px] sw:mt-1">{fenError}</p>}
   </div>
 )

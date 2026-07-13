@@ -108,7 +108,7 @@ export function buildArrowShape(
   to: string,
   isFlipped: boolean,
   squareSize: number,
-  _lengthReducer: number,
+  lengthReducer: number,
 ): ArrowShape | null {
   const { x1, y1, x2, y2 } = getArrowPoints(from, to, isFlipped, squareSize)
   const dx = x2 - x1
@@ -118,11 +118,24 @@ export function buildArrowShape(
 
   const knightDistance = Math.hypot(1, 2) * squareSize
   const start = { x: x1, y: y1 }
-  const tip = { x: x2, y: y2 }
+  const destination = { x: x2, y: y2 }
+
+  const shortenTip = (tip: Point, previous: Point) => {
+    const finalDx = tip.x - previous.x
+    const finalDy = tip.y - previous.y
+    const finalDistance = Math.hypot(finalDx, finalDy)
+    if (finalDistance === 0) return tip
+    const reduction = Math.min(Math.max(lengthReducer, 0), finalDistance * 0.8)
+    return {
+      x: tip.x - (finalDx / finalDistance) * reduction,
+      y: tip.y - (finalDy / finalDistance) * reduction,
+    }
+  }
 
   if (Math.round(distance) === Math.round(knightDistance)) {
     const isVerticalFirst = Math.abs(dx) < Math.abs(dy)
     const corner = isVerticalFirst ? { x: x1, y: y2 } : { x: x2, y: y1 }
+    const tip = shortenTip(destination, corner)
     const head = buildArrowHead(tip, corner, squareSize)
     if (!head) return null
 
@@ -132,6 +145,7 @@ export function buildArrowShape(
     }
   }
 
+  const tip = shortenTip(destination, start)
   const head = buildArrowHead(tip, start, squareSize)
   if (!head) return null
 

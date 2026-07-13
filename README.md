@@ -40,6 +40,13 @@ Build the demo app:
 npm run build:demo
 ```
 
+Run regression tests and the distributable bundle checks:
+
+```bash
+npm test
+npm run check:bundle
+```
+
 ## Local npm-test route
 
 Run:
@@ -56,7 +63,7 @@ http://localhost:5173/npm-test
 
 ## External chess.js API (new)
 
-`ChessBoard` now consumes your own `Chess` instance and `position` string instead of owning internal game state.
+`ChessBoard` consumes your own `Chess` instance and `position` string instead of owning standard game state.
 
 ```tsx
 import { Chess } from 'chess.js'
@@ -92,15 +99,19 @@ const chess = new Chess()
 - `LiveArrow`
 
 It also exports `BOARD_THEME_PRESETS` for preset color lookup.
+It exports `getChessBoardHistory(chess)` for history that includes synthetic god-mode moves.
+
+The published stylesheet scopes its reset and utility state beneath `.swiftchess-root`, so importing it does not reset the host application. The optimized ESM build keeps badge and sound media as separate cacheable files; the legacy CommonJS build embeds those files so browser bundlers do not resolve them against the consuming page.
 
 ### Core props
 
 | Prop | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `chess` | `Chess` | required | External chess.js instance (source of truth for moves/history). |
+| `chess` | `Chess` | required | External chess.js instance. It remains the source of truth for standard legal games; see the god-mode history note below. |
 | `position` | `string` | required | Current FEN shown by the board. |
-| `onPositionChange` | `(fen: string, move?: Move) => void` | - | Fired after board updates position. |
-| `onMove` | `(move: Move) => void` | - | Fired for successful moves (including executed premoves). |
+| `onPositionChange` | `(fen: string, move: Move \| undefined, history: readonly Move[]) => void` | - | Fired after board updates position, with the board-visible history. |
+| `onMove` | `(move: Move, history: readonly Move[]) => void` | - | Fired for successful moves (including executed premoves), with the board-visible history. |
+| `onHistoryChange` | `(history: readonly Move[]) => void` | - | Fired whenever board navigation or a move changes the visible history. |
 | `lastMoveBadge` | `{ kind: MoveBadgeKind; label?: string; src?: string } \| null` | - | Renders a PNG badge on the destination square of the latest move. |
 | `moveBadges` | `{ ply: number; badge: MoveBadge }[]` | - | Host-provided move classifications keyed by 1-based ply. Automatically follows previous/next navigation. |
 | `mode` | `'play' \| 'analysis'` | `'play'` | UI mode hint for status and host integration. |
@@ -130,6 +141,8 @@ You can still override any badge image with `lastMoveBadge={{ kind: 'best', src:
 Set `explorerMode="normal"` when the board should behave like an opening explorer instead of a player-only board. In normal explorer mode, users can click or drag the side whose turn it is, even when that side does not match `playerColor`; moves still follow the legal turn in the current FEN.
 
 Use `explorerMode="god"` only when you intentionally want sandbox behavior where either side can be selected regardless of turn. God mode still uses chess.js legal moves for the selected piece, but it bypasses the FEN turn by evaluating from that piece's side.
+
+Because chess.js cannot represent an out-of-turn sequence in its native move stack, an off-turn god-mode move resets `chess.history()`. SwiftChess keeps a separate timeline keyed to the supplied `Chess` instance, preserves it across board remounts, and supplies it to `onMove`, `onPositionChange`, and `onHistoryChange`. Outside callbacks, read the same timeline with `getChessBoardHistory(chess)` or `boardRef.current?.getHistory()` instead of `chess.history()` when god mode is active.
 
 ```tsx
 <ChessBoard
@@ -201,13 +214,14 @@ Built-in presets:
 | `boardSize` | `number` | - | Optional controlled board size in pixels. |
 | `onBoardSizeChange` | `(boardSize: number, squareSize: number) => void` | - | Fired while the user drags the resize handle. |
 | `resizable` | `boolean` | `false` | Shows a bottom-right drag handle for user-controlled board resizing. |
-| `fillContainer` | `boolean` | `true` | Board measures parent width and fills it. |
+| `fillContainer` | `boolean` | `false` | Board measures parent width and fills it. Ignored when `boardSize` or `squareSize` controls sizing. |
 | `squareSize` | `number` | - | Optional fixed square size (px). |
 | `minSize` | `number` | `40` | Minimum square size when `fillContainer` is enabled. |
 | `maxSize` | `number` | `Infinity` | Maximum square size when `fillContainer` is enabled. |
 | `className` | `string` | - | Class for the board root container. |
 | `showStatusBar` | `boolean` | `false` | Optional lightweight status row. |
 | `showCapturedPieces` | `boolean` | `false` | Optional captured pieces rows. |
+| `showLegalMoves` | `boolean` | `true` | Shows legal target indicators for the selected piece. |
 
 Use `resizable` when the package should render its own resize handle:
 
@@ -251,6 +265,8 @@ boardRef.current?.goToPreviousMove()
 boardRef.current?.goToNextMove()
 boardRef.current?.canGoToPreviousMove()
 boardRef.current?.canGoToNextMove()
+boardRef.current?.getHistory()
+boardRef.current?.getCurrentPly()
 boardRef.current?.setPositionFromFen('...')
 boardRef.current?.resetToInitialFen()
 ```

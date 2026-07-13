@@ -1,15 +1,15 @@
 import React from 'react'
 import type { MoveBadge, MoveBadgeKind } from '../ChessBoard'
-import blunderBadgeSrc from '../../assets/blunder.png'
-import mistakeBadgeSrc from '../../assets/mistake.png'
-import inaccuracyBadgeSrc from '../../assets/inaccuracy.png'
-import missBadgeSrc from '../../assets/miss.png'
-import goodBadgeSrc from '../../assets/goodMove.png'
-import excellentBadgeSrc from '../../assets/Excellent.png'
-import bestBadgeSrc from '../../assets/bestMove.png'
-import brilliantBadgeSrc from '../../assets/Brilliant.png'
-import bookBadgeSrc from '../../assets/bookMove.png'
-import onlyMoveBadgeSrc from '../../assets/OnlyMove.png'
+import blunderBadgeSrc from '../../assets/blunder.png?no-inline'
+import mistakeBadgeSrc from '../../assets/mistake.png?no-inline'
+import inaccuracyBadgeSrc from '../../assets/inaccuracy.png?no-inline'
+import missBadgeSrc from '../../assets/miss.png?no-inline'
+import goodBadgeSrc from '../../assets/goodMove.png?no-inline'
+import excellentBadgeSrc from '../../assets/Excellent.png?no-inline'
+import bestBadgeSrc from '../../assets/bestMove.png?no-inline'
+import brilliantBadgeSrc from '../../assets/Brilliant.png?no-inline'
+import bookBadgeSrc from '../../assets/bookMove.png?no-inline'
+import onlyMoveBadgeSrc from '../../assets/OnlyMove.png?no-inline'
 
 interface MoveBadgeIconProps {
   badge: MoveBadge
@@ -52,7 +52,7 @@ export const MoveBadgeIcon: React.FC<MoveBadgeIconProps> = React.memo(({ badge, 
       alt={title}
       width={size}
       height={size}
-      className="rounded-full object-cover drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]"
+      className="sw:rounded-full sw:object-cover sw:drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]"
       aria-label={title}
       title={title}
       draggable={false}

@@ -24,12 +24,14 @@ export const PromotionDialog: React.FC<PromotionDialogProps> = ({
 
   const toCoords = getSquareCoords(pending.to, isFlipped)
   const isTop = toCoords.row === 0
-  const promotionPieces = ['Q', 'R', 'B', 'N']
+  // Keep the queen (the primary choice) anchored to the destination square
+  // regardless of which edge the pawn reached.
+  const promotionPieces = isTop ? ['Q', 'R', 'B', 'N'] : ['N', 'B', 'R', 'Q']
 
   return (
-    <div className="absolute inset-0 z-[100] bg-black/30">
+    <div className="sw:absolute sw:inset-0 sw:z-[100] sw:bg-black/30">
       <div
-        className="absolute flex flex-col bg-white rounded shadow-2xl overflow-hidden z-[101]"
+        className="sw:absolute sw:flex sw:flex-col sw:bg-white sw:rounded sw:shadow-2xl sw:overflow-hidden sw:z-[101]"
         style={{
           left: toCoords.col * squareSize,
           top: isTop ? 0 : (boardSize - squareSize * 4),
@@ -39,14 +41,16 @@ export const PromotionDialog: React.FC<PromotionDialogProps> = ({
           const key = `${playerColor}${piece}`
           const PieceComp = PieceComponents[key]
           return (
-            <div
+            <button
+              type="button"
               key={piece}
-              className="flex items-center justify-center cursor-pointer bg-white hover:bg-indigo-100 transition-colors"
+              className="sw:flex sw:items-center sw:justify-center sw:cursor-pointer sw:bg-white sw:hover:bg-indigo-100 sw:transition-colors"
               style={{ width: squareSize, height: squareSize }}
               onClick={() => onSelect(piece.toLowerCase())}
+              aria-label={`Promote to ${piece}`}
             >
               {PieceComp && <PieceComp size={squareSize - 12} />}
-            </div>
+            </button>
           )
         })}
       </div>

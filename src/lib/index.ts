@@ -1,6 +1,4 @@
-import '../styles/swiftchess.css'
-
-export { default as ChessBoard } from '../components/ChessBoard'
+export { default as ChessBoard, getChessBoardHistory } from '../components/ChessBoard'
 export type {
   ChessBoardProps,
   ChessBoardHandle,

@@ -2,6 +2,21 @@
   "name": "swiftchess",
   "version": "0.1.8",
   "description": "React chessboard component with premoves, arrows, move indicators, and analysis-friendly hooks.",
+  "keywords": [
+    "chess",
+    "chessboard",
+    "react",
+    "chess.js",
+    "premove"
+  ],
+  "homepage": "https://swiftches.lucarioqh5.workers.dev/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RajanDhamala/SwiftChess.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RajanDhamala/SwiftChess/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -26,7 +41,10 @@
     "dev:demo": "vite",
     "build": "npm run build:lib",
     "build:demo": "tsc && vite build",
-    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
+    "build:lib": "vite build --config vite.lib.config.ts --mode library-es && vite build --config vite.lib.config.ts --mode library-cjs && tsc -p tsconfig.lib.json",
+    "check:bundle": "npm run build:lib && node scripts/check-bundle-size.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview"
   },
   "peerDependencies": {
@@ -36,17 +54,18 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.3",
+    "@vitejs/plugin-react": "^5.2.0",
     "chess.js": "^1.4.0",
+    "jsdom": "^29.1.1",
+    "lucide-react": "^1.24.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
-    "vite": "^7.2.4"
-  },
-  "dependencies": {
-    "lucide-react": "^1.17.0"
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
   }
 }

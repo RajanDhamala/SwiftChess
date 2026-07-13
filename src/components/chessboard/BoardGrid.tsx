@@ -123,7 +123,7 @@ const SquareCell = React.memo(({
 
   return (
     <div
-      className="relative flex items-center justify-center cursor-pointer select-none"
+      className="sw:relative sw:flex sw:items-center sw:justify-center sw:cursor-pointer sw:select-none"
       style={{
         width: squareSize,
         height: squareSize,
@@ -135,14 +135,14 @@ const SquareCell = React.memo(({
     >
       {isPremoveSquare && <PremoveOverlay />}
       {isLastMoveDestination && lastMoveBadge && (
-        <div className="absolute top-0.5 right-0.5 pointer-events-none z-[6]">
+        <div className="sw:absolute sw:top-0.5 sw:right-0.5 sw:pointer-events-none sw:z-[6]">
           <MoveBadgeIcon badge={lastMoveBadge} size={badgeSize} />
         </div>
       )}
 
       {col === 0 && (
         <span
-          className="absolute top-0.5 left-1 text-[11px] font-bold pointer-events-none z-[2]"
+          className="sw:absolute sw:top-0.5 sw:left-1 sw:text-[11px] sw:font-bold sw:pointer-events-none sw:z-[2]"
           style={{ color: coordColor }}
         >
           {isFlipped ? row + 1 : 8 - row}
@@ -150,7 +150,7 @@ const SquareCell = React.memo(({
       )}
       {row === 7 && (
         <span
-          className="absolute bottom-0.5 right-1 text-[11px] font-bold pointer-events-none z-[2]"
+          className="sw:absolute sw:bottom-0.5 sw:right-1 sw:text-[11px] sw:font-bold sw:pointer-events-none sw:z-[2]"
           style={{ color: coordColor }}
         >
           {isFlipped ? String.fromCharCode(104 - col) : String.fromCharCode(97 + col)}
@@ -158,15 +158,15 @@ const SquareCell = React.memo(({
       )}
 
       {isLegalTarget && !isCapture && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[28%] h-[28%] rounded-full bg-black/[0.18] pointer-events-none z-[3]" />
+        <div className="sw:absolute sw:top-1/2 sw:left-1/2 sw:-translate-x-1/2 sw:-translate-y-1/2 sw:w-[28%] sw:h-[28%] sw:rounded-full sw:bg-black/[0.18] sw:pointer-events-none sw:z-[3]" />
       )}
 
       {isCapture && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[90%] rounded-full border-[5px] border-black/[0.18] pointer-events-none z-[3] box-border" />
+        <div className="sw:absolute sw:top-1/2 sw:left-1/2 sw:-translate-x-1/2 sw:-translate-y-1/2 sw:w-[90%] sw:h-[90%] sw:rounded-full sw:border-[5px] sw:border-black/[0.18] sw:pointer-events-none sw:z-[3] sw:box-border" />
       )}
 
       {piece && !isDragSource && (
-        <div className="flex items-center justify-center w-full h-full z-[4] cursor-grab active:cursor-grabbing">
+        <div className="sw:flex sw:items-center sw:justify-center sw:w-full sw:h-full sw:z-[4] sw:cursor-grab sw:active:cursor-grabbing">
           <PieceView piece={piece} size={squareSize - 8} />
         </div>
       )}
